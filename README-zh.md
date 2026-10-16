@@ -1,0 +1,102 @@
+# ctx_parser
+
+[English](README.md) | [源码](https://github.com/gatework/ctx_parser) | [变更记录](CHANGELOG.md)
+
+面向网络 CLI 解析的纯 Ruby 公共组件，提供不可变结果、来源游标、配置树、命令目录及平台策略。厂商语法和设备会话由对应领域模块负责。
+
+## 能力
+
+- `Parser`、`ConfigurationParser` 定义文本输入及完整性边界。
+- `Cursor`、`Document`、`Capture` 保留来源位置和嵌套配置上下文。
+- `Profile`、`CommandCatalog`、`Registry` 声明平台/型号行为，同一回显可共享解析。
+- `Values`、`Records`、`Immutable` 统一值转换、身份检查与防御性复制。
+
+## 安装
+
+要求 **Ruby 4.0.6 或更新版本**。在应用的 `Gemfile` 中添加：
+
+```ruby
+gem "ctx_parser"
+```
+
+然后执行 `bundle install`；也可直接执行 `gem install ctx_parser`。Ruby 加载入口为 `ctx_parser`，公开命名空间为 `CtxParser`；gem 包名与 Ruby 命名空间分别维护。
+
+本模块不依赖其他 Gatework 领域 gem。 gemspec 的运行依赖不添加版本约束；应用应提交自己的 `Gemfile.lock`，保持部署可复现。使用本库不需要启动 Rails 或配置兄弟模块的本地路径。
+
+发布产物和校验值见 [GitHub Releases](https://github.com/gatework/ctx_parser/releases)，已发布版本以 [RubyGems](https://rubygems.org/gems/ctx_parser) 为准。
+
+## 离线示例
+
+在开发检出目录安装依赖后执行：
+
+```sh
+bundle exec ruby examples/offline.rb
+```
+
+示例使用合成数据，不访问网络。完整代码见 [examples/offline.rb](examples/offline.rb)：
+
+```ruby
+require "ctx_parser"
+
+# 示例仅实现小型语法；厂商语法应放入对应领域 gem。
+class ExampleStatusParser < CtxParser::Parser
+  private
+
+  # 保留未知行，并遵循调用方声明的传输完整性。
+  def parse_output(text, complete:)
+    records = []
+    issues = []
+    text.each_line.with_index(1) do |line, number|
+      next if line.strip.empty?
+
+      match = /\A([A-Za-z0-9\/]+) (up|down)\z/.match(line.strip)
+      if match
+        records << { name: match[1], state: match[2].to_sym }
+      else
+        issues << { code: :unrecognized_row, line: number }
+      end
+    end
+    status = complete && issues.empty? && !records.empty? ? :complete : :partial
+    CtxParser::Result.new(status: status, records: records, issues: issues)
+  end
+end
+
+result = ExampleStatusParser.parse("Eth1/1 up\nEth1/2 down\n", complete: true)
+puts "Parse status: #{result.status}"
+result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
+```
+
+## 公开契约与限制
+
+`Parser.parse(text, complete: false)` 返回包含 `status`、`records`、`issues` 的 `Result`；多视图解析器可返回 `ResultSet`。状态为 `complete`、`partial`、`failed`、`unsupported`。子类实现 `parse_output`，配置子类通过 `analyze` 和 `capture` 保留来源。
+
+`complete: true` 只表示调用方确认输入完整接收，不证明所有语法都已理解。未知行、身份冲突及空表证据不足必须明确表达。结果不可变；来源游标有意保留输入原文，含秘密时不可写入日志。
+
+本 gem 不提供厂商命令目录、传输、持久化或健康策略。参数和注册表配置错误保持异常，由调用方在对应边界处理。
+
+详细厂商语义、历史验证记录和 Motor 专用集成说明保留在[架构参考](docs/architecture-zh.md)。其中宿主集成代码需要 Motor，不属于独立 gem API。适配层位于 [Motor 仓库](https://github.com/gatework/motor/tree/main/backend/lib) 的 `backend/lib/baseline`、`backend/lib/vxlan` 和 `backend/lib/wireless`。
+
+## 开发与测试
+
+```sh
+bundle install
+bundle exec rake
+bundle exec ruby examples/offline.rb
+bundle exec rake build
+```
+
+`bundle exec rake` 执行 RSpec、RuboCop 及离线示例。测试放在 `spec/`，沿用项目 RSpec 约定；样例采用合成或脱敏证据。新增解析格式时补充成功、不完整、不支持及非法输入回归。离线测试不代表所有设备版本均通过实机验证。
+
+使用声明的最低 Ruby 版本检查兼容性。方法用途统一使用简明中文注释；复杂实现还需说明业务规则、实现思路及关键分支。保持公开返回值与错误契约。真实回显和凭据不可进入示例、fixture、日志或发布包。
+
+## 发布
+
+本目录可独立维护为 [ctx_parser](https://github.com/gatework/ctx_parser) 仓库。更新 `VERSION` 和 `CHANGELOG.md`，运行上述验证与构建命令，检查包内文件，再创建 `vVERSION` 标签。
+
+CI 在 Linux、macOS 上执行测试、lint、示例、构建和隔离安装。`main` 的 CI 通过后推送 `vVERSION` 标签，工作流将已验证的 Linux 产物发布到 RubyGems 和 GitHub Release，附带 `SHA256SUMS` 并回读下载字节。GitHub `release` environment 可配置 `RUBYGEMS_API_KEY` secret；未配置时使用 RubyGems Trusted Publishing，绑定本仓库、`release.yml` 和 `release` environment。失败时重跑失败的发布 job，以复用原 CI 产物；同版本已存在时必须校验字节一致。详见[发布说明](docs/release.md)。
+
+先发布依赖模块。标签、构建成功或工作流文件都不等于已经发布，需单独确认 RubyGems 的实际结果。版本变化见 [CHANGELOG.md](CHANGELOG.md)。
+
+## 许可证
+
+MIT，见 [LICENSE](LICENSE)。
