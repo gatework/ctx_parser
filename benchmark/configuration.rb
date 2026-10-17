@@ -8,13 +8,13 @@ require "baseline"
 input = "hostname LEAF\n" + (1..10_000).map do |index|
   "interface Ethernet1/#{index}\n description Test port #{index}\n"
 end.join
-expected = Baseline::Parsers::CiscoNxos.parse("hostname LEAF\n", complete: true).to_h
+expected = Baseline::CiscoNxos::Parser.parse("hostname LEAF\n", complete: true).to_h
 unless expected[:status] == :complete && expected.dig(:records, 0, "facts", "hostname") == "LEAF"
   abort "Unexpected baseline facts"
 end
 
 puts RUBY_DESCRIPTION
-puts "source=#{Baseline::Parsers::CiscoNxos.instance_method(:parse_output).source_location.first}"
+puts "source=#{Baseline::CiscoNxos::Parser.instance_method(:parse_output).source_location.first}"
 puts "result_sha256=#{Digest::SHA256.hexdigest(JSON.generate(expected))}"
 
 # 计时排除输入构造及语义断言；分配量仅统计被测工作。
@@ -31,7 +31,7 @@ end
 
 3.times do |trial|
   outputs = measure("configuration", trial, input_bytes: input.bytesize, input_lines: input.lines.size, parses: 3) do
-    3.times.map { Baseline::Parsers::CiscoNxos.parse(input, complete: true).to_h }
+    3.times.map { Baseline::CiscoNxos::Parser.parse(input, complete: true).to_h }
   end
   abort "Parsed output changed" unless outputs.all? { |output| output == expected }
 end
@@ -41,7 +41,7 @@ servers = (1..1000).map { |index| "10.0.#{index / 256}.#{index % 256}" }
 source = "hostname LEAF\n" + servers.map { |server| "ntp server #{server}\n" }.join
 3.times do |trial|
   parser = measure("fact_sources", trial, input_bytes: source.bytesize, source_count: servers.size, parses: 1) do
-    Baseline::Parsers::CiscoNxos.new.tap { |instance| instance.parse(source, complete: true) }
+    Baseline::CiscoNxos::Parser.new.tap { |instance| instance.parse(source, complete: true) }
   end
   captures = parser.cursor.captures_for([ "facts", "ntp.servers" ])
   unless captures.size == servers.size && captures.all? { |capture| capture.data == servers } &&

@@ -2,6 +2,10 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.1 (2026-10-17)
+
+- Update the configuration benchmark to use the Baseline 0.2 vendor parser namespace.
+
 ## 0.2.0 (2026-10-17)
 
 - Validate integer inputs and bound types without implicit object conversion; reject mixed MAC separators.
