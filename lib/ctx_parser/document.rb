@@ -14,7 +14,7 @@ module CtxParser
       @comments, @boundaries, @issues = comments, boundaries, []
       @roots = Block.read(cursor) { |line| classify(line) }
       finish
-      @issues.freeze
+      @issues = Immutable.copy(@issues)
     end
 
     # 选择符合目标命令语法的根配置块。

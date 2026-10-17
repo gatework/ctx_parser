@@ -2,13 +2,13 @@
 
 [简体中文](README-zh.md) | [Source](https://github.com/gatework/ctx_parser) | [Changelog](CHANGELOG.md)
 
-Shared, pure Ruby building blocks for network CLI parsing. It provides immutable results, source cursors, configuration trees, command catalogs, and platform profiles without owning vendor syntax or device sessions.
+Shared, pure Ruby building blocks for network CLI parsing. It provides immutable results, source cursors, configuration trees, command declarations, and platform profiles without owning vendor syntax or device sessions.
 
 ## Features
 
-- `Parser` and `ConfigurationParser` define explicit text and completeness boundaries.
+- `Parser` and `Configuration` define explicit text and completeness boundaries.
 - `Cursor`, `Document`, and `Capture` preserve source positions and nested configuration context.
-- `Profile`, `CommandCatalog`, and `Registry` select declared platform/model behavior and share parsing across views.
+- `Profile`, `Commands`, and `Registry` select declared platform/model behavior and share parsing across views.
 - `Values`, `Records`, and `Immutable` centralize conversion, identity checks, and defensive copies.
 
 ## Installation
@@ -68,15 +68,25 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 
 ## Public contract and limits
 
-`Parser.parse(text, complete: false)` returns a `Result` with `status`, `records`, and `issues`; a multi-view parser can return `ResultSet`. Result statuses are `complete`, `partial`, `failed`, and `unsupported`. Subclasses implement `parse_output`. Configuration subclasses can use `analyze` and `capture` to preserve provenance.
+`Parser.parse(text, complete: false)` returns a `Result` with `status`, `records`, and `issues`; a multi-view parser can return `Results`. Result statuses are `complete`, `partial`, `failed`, and `unsupported`. Subclasses implement `parse_output`. Configuration subclasses can use `analyze` and `capture` to preserve provenance.
 
-`complete: true` confirms that the caller received the entire input; it does not certify that all syntax was understood. Unknown rows, identity conflicts, and insufficient empty-table evidence must remain explicit. Results are immutable. Source cursors intentionally retain original input and must not be logged when it contains secrets.
+`complete: true` confirms that the caller received the entire input; it does not certify that all syntax was understood. Unknown rows, identity conflicts, and insufficient empty-table evidence must remain explicit. Result records and issues must be arrays of hashes. Results and completed document diagnostics own immutable snapshots. `inspect` and `to_s` omit result facts and diagnostics; explicit record access still returns the original facts. Source cursors intentionally retain original input and must not be logged when it contains secrets.
 
-This gem supplies no vendor command catalog, transport, persistence, or health policy. Parser/registry argument errors remain exceptions for callers to handle at their own boundary.
+This gem supplies no vendor command declarations, transport, persistence, or health policy. Parser/registry argument errors remain exceptions for callers to handle at their own boundary.
 
 Detailed vendor behavior, historical validation notes, and Motor-only integration are preserved in [the architecture reference](docs/architecture-zh.md). Host integration examples in that reference require Motor; they are not standalone gem APIs. Motor adapters live under `backend/lib/baseline`, `backend/lib/vxlan`, and `backend/lib/wireless` in the [Motor repository](https://github.com/gatework/motor/tree/main/backend/lib).
 
+## Domain vocabulary
+
+Names use domain nouns: `Configuration` parses configuration documents; `Result` holds one result and `Results` holds named results; `Commands` stores command declarations. Both collections expose their dimension index as `by_dimension`. Generic `Parser` owns the text parsing contract; configuration source state belongs to `Configuration`.
+
+A dimension is a named view of facts; a command is the CLI query that supplies those facts. `Profile#queries` groups dimensions by command, and model overrides choose parsers for commands. `Records` groups rows by logical identity; duplicate identity counts and redundant row counts are different quantities. `Line`, `Block`, and `Capture` retain source locations, while `Result` contains normalized facts and diagnostics. Neither parsing completeness nor an empty result establishes device health.
+
+Address conversion uses `Values.ip_address`, `Values.ip_address?`, and `Values.mac_address`. `Values.ipv4_prefix(..., preserve_host_bits: true)` explicitly preserves interface host bits; its default returns a network prefix.
+
 ## Development and tests
+
+Name shared classes by their responsibility and use the namespace for platform context. Preserve filenames and class names that directly match device commands.
 
 ```sh
 bundle install

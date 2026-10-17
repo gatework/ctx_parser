@@ -1,30 +1,30 @@
 # frozen_string_literal: true
 
 require_relative "spec_helper"
-require "ctx_parser/command_catalog"
+require "ctx_parser/commands"
 
-RSpec.describe CtxParser::CommandCatalog do
+RSpec.describe CtxParser::Commands do
   let(:parser) { Class.new(CtxParser::Parser) }
   let(:entry) { { dimensions: %i[access_points radios], command: +"display ap verbose", parser: parser } }
 
   it "indexes multiple views of one command without taking ownership of the caller's declaration" do
     declarations = [ entry ]
-    catalog = described_class.new(declarations)
+    commands = described_class.new(declarations)
     entry[:dimensions].replace([ :clients ])
     entry[:command].replace("display clients")
     entry[:parser] = Class.new(CtxParser::Parser)
     declarations.clear
 
-    expect(catalog.commands).to eq(access_points: "display ap verbose", radios: "display ap verbose")
-    expect(catalog.parsers.fetch("display ap verbose")).to equal(parser)
-    expect(catalog.entries.first).to eq(dimensions: %i[access_points radios], command: "display ap verbose", parser: parser)
+    expect(commands.by_dimension).to eq(access_points: "display ap verbose", radios: "display ap verbose")
+    expect(commands.parsers.fetch("display ap verbose")).to equal(parser)
+    expect(commands.entries.first).to eq(dimensions: %i[access_points radios], command: "display ap verbose", parser: parser)
     expect(parser).not_to be_frozen
-    expect { catalog.entries << {} }.to raise_error(FrozenError)
-    expect { catalog.entries.first[:dimensions] << :clients }.to raise_error(FrozenError)
-    expect { catalog.entries.first[:command].replace("different") }.to raise_error(FrozenError)
-    expect { catalog.entries.first[:parser] = parser }.to raise_error(FrozenError)
-    expect { catalog.commands[:clients] = "display clients" }.to raise_error(FrozenError)
-    expect { catalog.parsers["display clients"] = parser }.to raise_error(FrozenError)
+    expect { commands.entries << {} }.to raise_error(FrozenError)
+    expect { commands.entries.first[:dimensions] << :clients }.to raise_error(FrozenError)
+    expect { commands.entries.first[:command].replace("different") }.to raise_error(FrozenError)
+    expect { commands.entries.first[:parser] = parser }.to raise_error(FrozenError)
+    expect { commands.by_dimension[:clients] = "display clients" }.to raise_error(FrozenError)
+    expect { commands.parsers["display clients"] = parser }.to raise_error(FrozenError)
   end
 
   it "rejects conflicting views and repeated commands instead of silently overwriting them" do
@@ -61,17 +61,17 @@ RSpec.describe CtxParser::CommandCatalog do
   it "allows explicitly enabled independent queries for a shared dimension without changing single views" do
     second = { dimensions: %i[radios clients], command: +"display radio detail", parser: parser }
     third = { dimensions: [ :radios ], command: +"display radio counters", parser: parser }
-    catalog = described_class.new([ entry, second, third ], multi_command: true)
+    commands = described_class.new([ entry, second, third ], multi_command: true)
     second[:command].replace("changed")
     third[:dimensions].clear
 
-    expect(catalog.commands).to eq(access_points: "display ap verbose",
+    expect(commands.by_dimension).to eq(access_points: "display ap verbose",
       radios: [ "display ap verbose", "display radio detail", "display radio counters" ], clients: "display radio detail")
-    expect(catalog.commands[:radios]).to be_frozen
-    expect(catalog.commands[:radios]).to all(be_frozen)
-    expect { catalog.commands[:radios] << "other" }.to raise_error(FrozenError)
-    expect { catalog.commands[:radios].last.replace("other") }.to raise_error(FrozenError)
-    expect(catalog.entries[1][:command]).to eq("display radio detail")
+    expect(commands.by_dimension[:radios]).to be_frozen
+    expect(commands.by_dimension[:radios]).to all(be_frozen)
+    expect { commands.by_dimension[:radios] << "other" }.to raise_error(FrozenError)
+    expect { commands.by_dimension[:radios].last.replace("other") }.to raise_error(FrozenError)
+    expect(commands.entries[1][:command]).to eq("display radio detail")
   end
 
   it "still rejects duplicate commands and dimensions within a declaration in multi-command mode" do

@@ -7,6 +7,10 @@ module CtxParser
   class Registry
     # 注册平台策略及其声明的别名。
     def initialize(profiles:, aliases: {})
+      unless profiles.is_a?(Hash) && aliases.is_a?(Hash)
+        raise ArgumentError, "Registry declarations must be hashes"
+      end
+
       @profiles = profiles.transform_keys { |key| platform_key(key) }.freeze
       @aliases = aliases.transform_keys { |key| platform_key(key) }.transform_values { |key| platform_key(key) }.freeze
       unless @profiles.size == profiles.size && @aliases.size == aliases.size &&

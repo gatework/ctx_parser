@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative "command_catalog"
+require_relative "commands"
 
 module CtxParser
   # 组合平台命令策略，仅覆盖已确认的型号差异。
@@ -16,7 +16,7 @@ module CtxParser
       raise ArgumentError, "Device model must be text" unless model.nil? || model.is_a?(String)
 
       @model = model&.strip&.downcase&.freeze
-      @model_parsers = model_parsers
+      @model_parsers = model_parser_overrides
     end
 
     # 返回当前平台策略声明的命令目录。
@@ -26,16 +26,16 @@ module CtxParser
     def parsers = self.class::PARSERS
 
     # 保留选择顺序并归组共享视图，不混用不同命令的正文。
-    def queries(names)
-      unless names.is_a?(Array) && names.uniq == names && (names - commands.keys).empty?
+    def queries(dimensions)
+      unless dimensions.is_a?(Array) && dimensions.uniq == dimensions && (dimensions - commands.keys).empty?
         raise ArgumentError, "Query dimensions must be unique supported names"
       end
 
-      plan = names.each_with_object({}) do |name, queries|
+      dimensions_by_command = dimensions.each_with_object({}) do |name, queries|
         commands_for(name).each { |command| (queries[command] ||= []) << name }
       end
-      plan.each_value(&:freeze)
-      plan.freeze
+      dimensions_by_command.each_value(&:freeze)
+      dimensions_by_command.freeze
     end
 
     # 单个维度可能需要多个独立回显；调用方必须分别保存正文。
@@ -69,21 +69,22 @@ module CtxParser
     end
 
     # AP、Radio 等共享视图仅解析一次，确保状态与数量证据一致。
-    def parse_many(names, text, complete: false, command: nil)
-      unless names.is_a?(Array) && names.any? && names.uniq == names
+    def parse_many(dimensions, text, complete: false, command: nil)
+      unless dimensions.is_a?(Array) && dimensions.any? && dimensions.uniq == dimensions
         raise ArgumentError, "Parser dimensions must be a nonempty unique array"
       end
-      query = select_command(names, command)
+      query = select_command(dimensions, command)
 
-      result = parser_for(names.first, command: query).parse(text, complete: complete)
-      names.to_h { |name| [ name, project_independently(name, result) ] }
+      # 查询已覆盖全部请求维度，无需再次遍历第一个维度的完整命令列表。
+      result = @model_parsers.fetch(query) { parsers.fetch(query) }.parse(text, complete: complete)
+      dimensions.to_h { |name| [ name, project_independently(name, result) ] }
     end
 
     private
 
     # 仅当存在唯一公共查询时允许推断；显式命令必须覆盖全部请求视图。
-    def select_command(names, selected)
-      candidates = names.map { |name| commands_for(name) }.reduce { |common, queries| common & queries }
+    def select_command(dimensions, selected)
+      candidates = dimensions.map { |name| commands_for(name) }.reduce { |common, queries| common & queries }
       unless selected.nil?
         raise ArgumentError, "Selected command does not provide all parser dimensions" unless candidates.include?(selected)
 
@@ -96,7 +97,7 @@ module CtxParser
     end
 
     # 采集前校验所选型号，并隔离后续修改对型号查找的影响。
-    def model_parsers
+    def model_parser_overrides
       declarations = self.class::MODEL_PARSERS
       raise ArgumentError, "Model parsers must be a hash" unless declarations.is_a?(Hash)
 
@@ -112,12 +113,12 @@ module CtxParser
 
     # 投影失败仅影响单个视图；命令选择及解析错误仍正常抛出。
     def project_independently(name, result)
-      return failed_projection(:invalid_parser_result) unless result.is_a?(Result) || result.is_a?(ResultSet)
+      return failed_projection(:invalid_parser_result) unless result.is_a?(Result) || result.is_a?(Results)
 
       projected = project(name, result)
       projected.is_a?(Result) ? projected : failed_projection(:invalid_parser_result)
     rescue KeyError
-      code = result.is_a?(ResultSet) && !result.results.key?(name) ? :missing_parser_view : :parser_projection_failed
+      code = result.is_a?(Results) && !result.key?(name) ? :missing_parser_view : :parser_projection_failed
       failed_projection(code)
     rescue StandardError
       failed_projection(:parser_projection_failed)
@@ -128,7 +129,7 @@ module CtxParser
 
     # 从共享命令结果中提取请求维度。
     def project(name, result)
-      result.is_a?(ResultSet) ? result.fetch(name) : result
+      result.is_a?(Results) ? result.fetch(name) : result
     end
   end
 end

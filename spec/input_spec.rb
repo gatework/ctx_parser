@@ -34,6 +34,32 @@ RSpec.describe CtxParser::Input do
     expect { described_class.text("a\0b".encode(Encoding::UTF_16LE), encoding: :transcode) }.to raise_error(ArgumentError, /NUL/)
   end
 
+  it "preserves valid non-ASCII-compatible encodings while checking logical NUL characters" do
+    %w[UTF-16LE UTF-16BE UTF-32LE UTF-32BE UTF-16 UTF-32].each do |encoding|
+      source = "description 无线".encode(encoding)
+      value = described_class.text(source)
+
+      expect(value.encoding).to eq(source.encoding)
+      expect(value.bytes).to eq(source.bytes)
+      expect(value).not_to equal(source)
+      expect { described_class.text("a\0b".encode(encoding)) }.to raise_error(ArgumentError, /NUL/)
+      expect(described_class.text("a\0b".encode(encoding), allow_nul: true).bytes).to eq("a\0b".encode(encoding).bytes)
+    end
+  end
+
+  it "normalizes logical line endings without changing the declared encoding" do
+    %w[UTF-16LE UTF-16BE UTF-32LE UTF-32BE UTF-16 UTF-32].each do |encoding|
+      source = "first\r\n无线\rthird\n".encode(encoding)
+      normalized = described_class.text(source, newlines: :lf)
+      deleted = described_class.text(source, newlines: :delete_cr)
+
+      expect(normalized.encoding).to eq(source.encoding)
+      expect(normalized.encode(Encoding::UTF_8)).to eq("first\n无线\nthird\n")
+      expect(deleted.encoding).to eq(source.encoding)
+      expect(deleted.encode(Encoding::UTF_8)).to eq("first\n无线third\n")
+    end
+  end
+
   it "can reinterpret mislabeled UTF-8 bytes when that is the platform policy" do
     source = "description 无线".dup.force_encoding(Encoding::ISO_8859_1)
 

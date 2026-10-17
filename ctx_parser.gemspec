@@ -7,7 +7,7 @@ Gem::Specification.new do |spec|
   spec.version = CtxParser::VERSION
   spec.authors = [ "Gatework contributors" ]
   spec.summary = "Parse network CLI evidence into normalized facts."
-  spec.description = "Reusable configuration documents, command catalogs, platform profiles, immutable results and parsing primitives for network automation."
+  spec.description = "Reusable configuration documents, command declarations, platform profiles, immutable results and parsing primitives for network automation."
   spec.homepage = "https://github.com/gatework/ctx_parser"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 4.0.6"

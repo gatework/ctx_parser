@@ -8,10 +8,10 @@ end
 
 require_relative "ctx_parser/parser"
 if CtxParser.const_defined?(:Parser, false)
-  require_relative "ctx_parser/configuration_parser"
+  require_relative "ctx_parser/configuration"
   require_relative "ctx_parser/values"
   require_relative "ctx_parser/records"
-  require_relative "ctx_parser/command_catalog"
+  require_relative "ctx_parser/commands"
   require_relative "ctx_parser/profile"
   require_relative "ctx_parser/registry"
 end

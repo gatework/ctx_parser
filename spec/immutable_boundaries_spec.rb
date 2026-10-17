@@ -16,6 +16,95 @@ RSpec.describe "Immutable facts and evidence" do
     expect { value[:interfaces].first.clear }.to raise_error(FrozenError)
   end
 
+  it "copies shared containers once while detaching mutable caller values" do
+    label = +"original"
+    shared = { labels: [ label ] }
+    snapshot = CtxParser::Immutable.copy([ shared, shared ])
+    label.replace("changed")
+
+    expect(snapshot.first).to equal(snapshot.last)
+    expect(snapshot.first[:labels]).to eq([ "original" ])
+    expect(snapshot.first).not_to equal(shared)
+    expect { snapshot.first[:labels] << "new" }.to raise_error(FrozenError)
+    expect(shared).not_to be_frozen
+  end
+
+  it "rejects recursive arrays and hashes as invalid plain data" do
+    recursive_array = []
+    recursive_array << recursive_array
+    recursive_hash = {}
+    recursive_hash[:self] = recursive_hash
+    mixed = { child: [] }
+    mixed[:child] << mixed
+
+    [ recursive_array, recursive_hash, mixed ].each do |source|
+      expect { CtxParser::Immutable.copy(source) }.to raise_error(ArgumentError, /cyclic/i)
+      expect(source).not_to be_frozen
+    end
+  end
+
+  it "copies deeply nested plain values without growing the Ruby call stack" do
+    source = +"leaf"
+    5_000.times { source = [ { nested: source } ] }
+    snapshot = CtxParser::Immutable.copy(source)
+
+    5_000.times do
+      expect(snapshot).to be_frozen
+      expect(snapshot.first).to be_frozen
+      snapshot = snapshot.first.fetch(:nested)
+    end
+    expect(snapshot).to eq("leaf")
+    expect(snapshot).to be_frozen
+  end
+
+  it "detects cycles that cross the bounded recursion and explicit-stack boundary" do
+    root = []
+    tail = root
+    100.times do
+      child = []
+      tail << child
+      tail = child
+    end
+    tail << root
+
+    expect { CtxParser::Immutable.copy(root) }.to raise_error(ArgumentError, /cyclic/i)
+  end
+
+  it "copies container keys before hashing without freezing caller keys or invoking defaults" do
+    key = [ +"identity" ]
+    source = Hash.new { raise "default must not run" }
+    source[key] = key
+    snapshot = CtxParser::Immutable.copy(source)
+    captured_key = snapshot.keys.first
+    key.first.replace("changed")
+
+    expect(captured_key).to eq([ "identity" ])
+    expect(captured_key).to be_frozen
+    expect(snapshot.fetch([ "identity" ])).to equal(captured_key)
+    expect(snapshot.default_proc).to be_nil
+    expect(key).not_to be_frozen
+  end
+
+  it "preserves immutable numeric values including nonfinite floating-point data" do
+    values = [ Float::NAN, Float::INFINITY, -Float::INFINITY, Rational(1, 3), Complex(1, 2) ]
+    snapshot = CtxParser::Immutable.copy(values)
+
+    snapshot.zip(values).each { |copied, source| expect(copied).to equal(source) }
+    expect { CtxParser::Immutable.copy([ Object.new ]) }.to raise_error(ArgumentError, /plain data/)
+  end
+
+  it "keeps ordinary hash equality and strips identity comparison and defaults" do
+    source = Hash.new("fallback").compare_by_identity
+    source[+"same"] = { value: "first" }
+    source[+"same"] = { value: "second" }
+    snapshot = CtxParser::Immutable.copy(source)
+
+    expect(snapshot).to eq("same" => { value: "second" })
+    expect(snapshot).not_to be_compare_by_identity
+    expect(snapshot.default).to be_nil
+    expect(snapshot.keys.first).to be_frozen
+  end
+
   [ CtxParser::Result ].each do |type|
     context type.name do
       let(:attributes) { type == CtxParser::Result ? {} : { name: :configuration } }
@@ -44,5 +133,19 @@ RSpec.describe "Immutable facts and evidence" do
         expect(replaced.to_h[:status]).to eq(:partial)
       end
     end
+  end
+  it "rejects custom numeric objects even when frozen or embedded in a Complex value" do
+    numeric = Class.new(Numeric) do
+      attr_reader :digits
+
+      def initialize = @digits = []
+    end.new
+    values = [ numeric, Complex.rect(numeric, 0) ]
+    values.each do |value|
+      expect { CtxParser::Immutable.copy({ value: value }) }.to raise_error(ArgumentError, /plain data/)
+    end
+    numeric.freeze
+    expect { CtxParser::Immutable.copy(numeric) }.to raise_error(ArgumentError, /plain data/)
+    expect(numeric.digits).not_to be_frozen
   end
 end

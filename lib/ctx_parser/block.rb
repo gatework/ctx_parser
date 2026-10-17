@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "cursor"
+
 module CtxParser
   # 配置节点覆盖整个子树，保留未知命令、空白及原始换行。
   class Block
@@ -10,9 +12,19 @@ module CtxParser
 
     # 冻结已校验的来源范围及其子配置块。
     def initialize(cursor:, header:, children:, last_index:)
-      unless cursor.lines[header.index].equal?(header) && last_index.is_a?(Integer) &&
+      unless cursor.is_a?(Cursor) && header.is_a?(Line) && cursor.lines[header.index].equal?(header) && last_index.is_a?(Integer) &&
           (header.index...cursor.size).cover?(last_index)
         raise ArgumentError, "Invalid source block range"
+      end
+
+      previous_index = header.index
+      unless children.is_a?(Array) && children.all? do |child|
+          next false unless child.is_a?(Block) && child.cursor.equal?(cursor) &&
+            child.index > previous_index && child.last_index <= last_index && child.header.indent > header.indent
+
+          previous_index = child.last_index
+        end
+        raise ArgumentError, "Child blocks must be ordered within their parent source"
       end
 
       @cursor, @header, @last_index = cursor, header, last_index
@@ -89,7 +101,7 @@ module CtxParser
     # 返回当前配置块各来源行的处理状态。
     def states = lines.map { |source| cursor.state(source.index) }.freeze
     # 要求块内所有来源行均已解析或明确忽略。
-    def complete? = states.all? { |state| Cursor::RESOLVED_STATES.include?(state) }
+    def complete? = (index..last_index).all? { |index| Cursor::RESOLVED_STATES.include?(cursor.state(index)) }
     # 序列化诊断元数据，不包含原始来源文本。
     def as_json(*) = { first_line: line, last_line: last_index + 1, children: children.size }
     # 展示对象身份与状态，避免泄露原始回显或凭据。

@@ -6,21 +6,21 @@ module CtxParser
     attr_reader :rows, :first_occurrences, :unambiguous, :duplicate_identity_count, :duplicate_row_count
 
     # 冻结筛选结果数组，记录值的所有权仍属于调用方。
-    def initialize(rows, identity: nil, &key)
+    def initialize(rows, identity: nil, &identity_key)
       unless rows.is_a?(Array) && rows.all? { |row| row.is_a?(Hash) }
         raise ArgumentError, "Records must be hashes"
       end
 
-      key ||= identity if identity.respond_to?(:call)
-      key ||= ->(row) { row.values_at(*identity) } if identity.is_a?(Array) && identity.any?
-      raise ArgumentError, "Identity must be a nonempty array or callable" unless key
+      identity_key ||= identity if identity.respond_to?(:call)
+      identity_key ||= ->(row) { row.values_at(*identity) } if identity.is_a?(Array) && identity.any?
+      raise ArgumentError, "Identity must be a nonempty array or callable" unless identity_key
 
       @rows = rows.dup.freeze
-      groups = @rows.group_by { |row| key.call(row) }.values
-      @first_occurrences = groups.map(&:first).freeze
-      @unambiguous = groups.filter_map { |group| group.first if group.one? }.freeze
-      @duplicate_identity_count = groups.count { |group| group.size > 1 }
-      @duplicate_row_count = @rows.size - groups.size
+      identity_groups = @rows.group_by { |row| identity_key.call(row) }.values
+      @first_occurrences = identity_groups.map(&:first).freeze
+      @unambiguous = identity_groups.filter_map { |group| group.first if group.one? }.freeze
+      @duplicate_identity_count = identity_groups.count { |group| group.size > 1 }
+      @duplicate_row_count = @rows.size - identity_groups.size
       freeze
     end
 

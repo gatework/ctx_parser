@@ -1,17 +1,33 @@
 # frozen_string_literal: true
 
 require_relative "parser"
+require_relative "document"
 
 module CtxParser
   # 共享来源状态与作用域管理；具体解析器负责识别规则及诊断。
-  class ConfigurationParser < Parser
-    private
+  class Configuration < Parser
+    attr_reader :cursor, :blocks, :document
 
-    # 为新的配置解析建立来源跟踪状态。
-    def read_configuration(...)
+    # 新解析开始即清空来源，参数校验失败也不暴露上一次配置。
+    def parse(text, complete: false)
+      @document, @cursor, @blocks = nil, nil, [].freeze
       @source_path = []
       @invalid_source = @source_error = nil
       super
+    end
+
+    # 只展示配置来源元数据，不序列化原文。
+    def as_json(*) = super.merge(cursor: cursor&.as_json, blocks: Array(blocks).size)
+
+    private
+
+    # 为新的配置解析建立来源跟踪状态。
+    def read_configuration(text, comments: nil, boundaries: nil, document_class: Document)
+      @source_path = []
+      @invalid_source = @source_error = nil
+      @document = document_class.new(text, comments: comments, boundaries: boundaries)
+      @cursor, @blocks = document.cursor, document.roots
+      @blocks
     end
 
     # 仅在解释成功后标记来源行；嵌套转换失败归因到最内层来源。

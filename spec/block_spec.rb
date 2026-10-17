@@ -4,7 +4,7 @@ require_relative "spec_helper"
 require "open3"
 require "rbconfig"
 require "ctx_parser/parser"
-require "ctx_parser/configuration_parser"
+require "ctx_parser/configuration"
 
 RSpec.describe CtxParser::Block do
   it "retains complete indentation blocks including unknown commands, comments, and blank lines" do
@@ -56,7 +56,7 @@ RSpec.describe CtxParser::Block do
   end
 
   it "ignores a deep domain-external subtree without claiming its lines were parsed" do
-    parser = Class.new(CtxParser::ConfigurationParser) do
+    parser = Class.new(CtxParser::Configuration) do
       private
 
       def parse_output(text, complete:)
@@ -164,7 +164,7 @@ RSpec.describe CtxParser::Block do
   end
 
   it "keeps each parse's sources independent and clears stale state before rejecting new input" do
-    parser = Class.new(CtxParser::Parser) do
+    parser = Class.new(CtxParser::Configuration) do
       private
 
       def parse_output(text, complete:)
@@ -183,5 +183,46 @@ RSpec.describe CtxParser::Block do
     expect { parser.parse(nil) }.to raise_error(ArgumentError)
     expect(parser.cursor).to be_nil
     expect(parser.blocks).to be_empty
+  end
+  it "rejects child blocks from other documents or outside the ordered parent range" do
+    document = CtxParser::Document.new("parent\n first\n second\nnext\n")
+    parent, following = document.roots
+    first, second = parent.children
+    foreign = CtxParser::Document.new("other\n").roots.first
+    invalid_children = [ nil, {}, [ nil ], [ foreign ], [ parent ], [ following ], [ second, first ], [ first, first ] ]
+
+    invalid_children.each do |children|
+      expect do
+        described_class.new(cursor: document.cursor, header: parent.header, children: children, last_index: parent.last_index)
+      end.to raise_error(ArgumentError)
+    end
+    expect do
+      described_class.new(cursor: document.cursor, header: parent.header, children: [ second ], last_index: first.last_index)
+    end.to raise_error(ArgumentError)
+    # Baseline 可以删除截断的末行节点，但仍保留父块的完整来源范围。
+    trimmed = described_class.new(cursor: document.cursor, header: parent.header, children: [ first ], last_index: parent.last_index)
+    expect(trimmed.content).to eq(parent.content)
+    expect(trimmed.children).to eq([ first ])
+  end
+
+  it "rejects invalid cursor and header objects at the source boundary" do
+    document = CtxParser::Document.new("parent\n")
+    [ [ nil, document.roots.first.header ], [ document.cursor, nil ], [ document.cursor, Object.new ] ].each do |cursor, header|
+      expect { described_class.new(cursor: cursor, header: header, children: [], last_index: 0) }.to raise_error(ArgumentError)
+    end
+  end
+
+  it "observes live completeness at the first, middle and final source line" do
+    document = CtxParser::Document.new("parent\n first\n last\n")
+    block = document.roots.first
+    CtxParser::Cursor::STATES.each do |state|
+      [ 0, 1, 2 ].each do |index|
+        3.times { |line| document.cursor.mark(line) }
+        document.cursor.mark(index, state: state)
+        expect(block.complete?).to eq(%i[parsed ignored].include?(state))
+      end
+    end
+    document.cursor.reset!
+    expect(block).not_to be_complete
   end
 end

@@ -62,4 +62,16 @@ RSpec.describe CtxParser::Document do
 
     expect { policy.new("hostname leaf\n") }.to raise_error(ArgumentError, "Invalid source line disposition")
   end
+  it "owns immutable diagnostics after the lexical policy finishes" do
+    diagnostic = { code: :unclosed_text, context: [ +"header" ] }
+    policy = Class.new(described_class) do
+      define_method(:finish) { issues << diagnostic }
+    end
+    document = policy.new("hostname leaf\n")
+    diagnostic[:context].first.replace("changed")
+
+    expect(document.issues).to eq([ { code: :unclosed_text, context: [ "header" ] } ])
+    expect { document.issues.first[:context].clear }.to raise_error(FrozenError)
+    expect(diagnostic).not_to be_frozen
+  end
 end

@@ -6,9 +6,9 @@
 
 ## 能力
 
-- `Parser`、`ConfigurationParser` 定义文本输入及完整性边界。
+- `Parser`、`Configuration` 定义文本输入及完整性边界。
 - `Cursor`、`Document`、`Capture` 保留来源位置和嵌套配置上下文。
-- `Profile`、`CommandCatalog`、`Registry` 声明平台/型号行为，同一回显可共享解析。
+- `Profile`、`Commands`、`Registry` 声明平台/型号行为，同一回显可共享解析。
 - `Values`、`Records`、`Immutable` 统一值转换、身份检查与防御性复制。
 
 ## 安装
@@ -68,15 +68,25 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 
 ## 公开契约与限制
 
-`Parser.parse(text, complete: false)` 返回包含 `status`、`records`、`issues` 的 `Result`；多视图解析器可返回 `ResultSet`。状态为 `complete`、`partial`、`failed`、`unsupported`。子类实现 `parse_output`，配置子类通过 `analyze` 和 `capture` 保留来源。
+`Parser.parse(text, complete: false)` 返回包含 `status`、`records`、`issues` 的 `Result`；多视图解析器可返回 `Results`。状态为 `complete`、`partial`、`failed`、`unsupported`。子类实现 `parse_output`，配置子类通过 `analyze` 和 `capture` 保留来源。
 
-`complete: true` 只表示调用方确认输入完整接收，不证明所有语法都已理解。未知行、身份冲突及空表证据不足必须明确表达。结果不可变；来源游标有意保留输入原文，含秘密时不可写入日志。
+`complete: true` 只表示调用方确认输入完整接收，不证明所有语法都已理解。未知行、身份冲突及空表证据不足必须明确表达。结果的记录和诊断均须为 Hash 数组；结果及构建完成的文档诊断持有不可变快照。`inspect` 和 `to_s` 不输出结果正文与诊断内容，显式读取记录仍返回原始事实。来源游标有意保留输入原文，含秘密时不可写入日志。
 
 本 gem 不提供厂商命令目录、传输、持久化或健康策略。参数和注册表配置错误保持异常，由调用方在对应边界处理。
 
 详细厂商语义、历史验证记录和 Motor 专用集成说明保留在[架构参考](docs/architecture-zh.md)。其中宿主集成代码需要 Motor，不属于独立 gem API。适配层位于 [Motor 仓库](https://github.com/gatework/motor/tree/main/backend/lib) 的 `backend/lib/baseline`、`backend/lib/vxlan` 和 `backend/lib/wireless`。
 
+## 领域术语
+
+名称使用领域名词：`Configuration` 解析配置文档，`Result` 表示单个结果，`Results` 保存具名结果，`Commands` 保存命令声明。两个集合均用 `by_dimension` 表示维度索引。通用 `Parser` 负责文本解析契约，配置来源状态归 `Configuration` 管理。
+
+维度是具名事实视图，命令是提供这些事实的 CLI 查询。`Profile#queries` 按命令归组维度，型号覆盖按命令选择解析器。`Records` 按逻辑身份归组记录；重复身份数与多余记录数是不同数量。`Line`、`Block`、`Capture` 保留来源位置，`Result` 承载归一化事实与诊断。解析完整性或空结果都不能证明设备健康。
+
+地址转换使用 `Values.ip_address`、`Values.ip_address?`、`Values.mac_address`。`Values.ipv4_prefix(..., preserve_host_bits: true)` 明确保留接口主机位，默认返回网段前缀。
+
 ## 开发与测试
+
+共享类按实际职责命名，平台信息放在命名空间中。直接对应设备命令的解析器保留文件名和类名。
 
 ```sh
 bundle install

@@ -10,7 +10,7 @@ RSpec.describe "Profiles with independent commands for a dimension" do
 
       def parse_output(text, complete:)
         result = CtxParser::Result.new(status: complete ? :complete : :partial, records: [ { source: text } ], issues: [])
-        CtxParser::ResultSet.new(results: { counters: result, interfaces: result, shared: result })
+        CtxParser::Results.new(by_dimension: { counters: result, interfaces: result, shared: result })
       end
     end
   end
@@ -20,18 +20,18 @@ RSpec.describe "Profiles with independent commands for a dimension" do
 
       def parse_output(text, complete:)
         result = CtxParser::Result.new(status: complete ? :complete : :partial, records: [ { second: text } ], issues: [])
-        CtxParser::ResultSet.new(results: { counters: result, alarms: result, shared: result })
+        CtxParser::Results.new(by_dimension: { counters: result, alarms: result, shared: result })
       end
     end
   end
   let(:profile_class) do
-    catalog = CtxParser::CommandCatalog.new([
+    declarations = CtxParser::Commands.new([
       { dimensions: %i[counters interfaces shared], command: "show input counters", parser: first_parser },
       { dimensions: %i[counters alarms shared], command: "show output counters", parser: second_parser }
     ], multi_command: true)
     Class.new(CtxParser::Profile).tap do |type|
-      type.const_set(:COMMANDS, catalog.commands)
-      type.const_set(:PARSERS, catalog.parsers)
+      type.const_set(:COMMANDS, declarations.by_dimension)
+      type.const_set(:PARSERS, declarations.parsers)
     end
   end
   let(:profile) { profile_class.new }

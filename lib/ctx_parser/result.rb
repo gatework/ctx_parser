@@ -9,6 +9,7 @@ module CtxParser
     def initialize(status:, records: [], issues: [])
       raise ArgumentError, "Invalid parser status" unless %i[complete partial failed unsupported].include?(status)
       raise ArgumentError, "Records must be hashes" unless records.is_a?(Array) && records.all? { |row| row.is_a?(Hash) }
+      raise ArgumentError, "Issues must be hashes" unless issues.is_a?(Array) && issues.all? { |issue| issue.is_a?(Hash) }
 
       super(status: status, records: Immutable.copy(records), issues: Immutable.copy(issues))
     end
@@ -18,5 +19,6 @@ module CtxParser
 
     # 展示对象身份与状态，避免泄露原始回显或凭据。
     def inspect = "#<#{self.class.name} status=#{status} records=#{records.size}>"
+    alias to_s inspect
   end
 end
