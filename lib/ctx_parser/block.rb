@@ -97,7 +97,7 @@ module CtxParser
     # 返回属于当前配置块的原始来源行。
     def lines = cursor.lines[index..last_index].freeze
     # 返回配置块或捕获事实对应的精确来源文本。
-    def content = lines.map(&:raw).join.freeze
+    def content = lines.map(&:raw).join("").freeze
     # 返回当前配置块各来源行的处理状态。
     def states = lines.map { |source| cursor.state(source.index) }.freeze
     # 要求块内所有来源行均已解析或明确忽略。

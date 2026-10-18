@@ -48,7 +48,7 @@ module CtxParser
     # 校验主机地址有效性，不让格式错误值继续传播。
     def ip_address?(raw, allow_zone: false)
       !ip_address(raw, allow_zone: allow_zone).nil?
-    rescue ArgumentError, IPAddr::Error
+    rescue ArgumentError, IPAddr::Error, EncodingError
       false
     end
 

@@ -2,8 +2,24 @@
 
 require_relative "spec_helper"
 require "ctx_parser/line"
+require "open3"
+require "rbconfig"
 
 RSpec.describe CtxParser::Line do
+  it "does not interpret the process input separator as part of the source grammar" do
+    script = <<~'RUBY'
+      require "ctx_parser"
+      $/ = "LEAF"
+      cursor = CtxParser::Cursor.new("hostname LEAF")
+      block = CtxParser::Block.read(cursor).first
+      abort "Source text changed" unless block.text == "hostname LEAF"
+      abort "Raw source changed" unless block.content == "hostname LEAF"
+    RUBY
+    output, error, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", script)
+
+    expect(status.success?).to be(true), "#{output}#{error}"
+  end
+
   it "retains the Data members and detaches source text from the caller" do
     raw = +" \tdescription edge\r\n"
     line = described_class.new(index: 2, raw: raw)

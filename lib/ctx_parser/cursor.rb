@@ -19,9 +19,12 @@ module CtxParser
 
       @content = Input.text(content, encoding: :transcode).freeze
 
-      @lines = @content.scan(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\z/).each_with_index.map do |raw, index|
-        Line.new(index: index, raw: raw)
-      end.freeze
+      # scan 直接交付每行，避免同时保留原始行数组与 Line 数组。
+      @lines = []
+      @content.scan(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\z/) do |raw|
+        @lines << Line.new(index: @lines.size, raw: raw)
+      end
+      @lines.freeze
       @checksum = Digest::SHA256.hexdigest(@content).freeze
       reset!
     end
@@ -123,7 +126,7 @@ module CtxParser
     end
 
     # 拼接未解决来源行，并保留原有格式。
-    def unparsed_content = unparsed_lines.map(&:raw).join.freeze
+    def unparsed_content = unparsed_lines.map(&:raw).join("").freeze
 
     # 将事实快照关联到来源块，不将整个块标记为解析成功。
     def capture(block, data:, path:)

@@ -99,6 +99,8 @@ bundle exec rake build
 
 使用声明的最低 Ruby 版本检查兼容性。方法用途统一使用简明中文注释；复杂实现还需说明业务规则、实现思路及关键分支。保持公开返回值与错误契约。真实回显和凭据不可进入示例、fixture、日志或发布包。
 
+执行 `bundle exec ruby -Ilib benchmark/source.rb`，可使用合成输入和语义断言测量游标及文档构建的耗时与对象分配量，无需领域 gem。此类本地测量不代表设备性能。
+
 ## 发布
 
 本目录可独立维护为 [ctx_parser](https://github.com/gatework/ctx_parser) 仓库。更新 `VERSION` 和 `CHANGELOG.md`，运行上述验证与构建命令，检查包内文件，再创建 `vVERSION` 标签。

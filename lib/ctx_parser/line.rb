@@ -8,7 +8,8 @@ module CtxParser
       raise ArgumentError, "Line index must be nonnegative" unless index.is_a?(Integer) && index >= 0
       raise ArgumentError, "Line content must be text" unless raw.is_a?(String)
 
-      @text = raw.chomp.strip.freeze
+      # strip 已移除行结束空白，避免 chomp 依赖宿主进程的 $/。
+      @text = raw.strip.freeze
       @indent = raw[/\A[ \t]*/].size
       super(index: index, raw: raw.dup.freeze)
     end

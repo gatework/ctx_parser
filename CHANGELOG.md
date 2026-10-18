@@ -2,6 +2,13 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.2 (2026-10-18)
+
+- Preserve exact block, capture and unresolved source text independently of Ruby's global output separator.
+- Normalize source lines independently of Ruby's global input separator, without an intermediate chomp allocation.
+- Build cursor lines directly during scanning instead of retaining an intermediate source-line array.
+- Return false from IP address validation for incompatible string encodings.
+
 ## 0.2.1 (2026-10-17)
 
 - Update the configuration benchmark to use the Baseline 0.2 vendor parser namespace.

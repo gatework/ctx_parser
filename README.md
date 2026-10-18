@@ -99,6 +99,8 @@ bundle exec rake build
 
 Use the declared minimum Ruby version for compatibility checks. Document source methods and non-obvious business logic in concise Chinese, preserve public return/error contracts, and never add raw device captures or credentials to examples, fixtures, logs, or release archives.
 
+Run `bundle exec ruby -Ilib benchmark/source.rb` to measure cursor and document construction with synthetic input and semantic checks. It needs no domain gems and reports elapsed time and allocated objects; these local measurements do not establish device performance.
+
 ## Release
 
 This directory can be maintained as the independent [ctx_parser](https://github.com/gatework/ctx_parser) repository. Update `VERSION` and `CHANGELOG.md`, run the validation and build commands above, and inspect the packaged file list before tagging `vVERSION`.

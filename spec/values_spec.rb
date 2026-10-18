@@ -4,6 +4,13 @@ require_relative "spec_helper"
 require "ctx_parser/values"
 
 RSpec.describe CtxParser::Values do
+  it "returns false for address text with incompatible or invalid encodings" do
+    [ "UTF-16LE", "UTF-16BE", "UTF-32LE", "UTF-32BE" ].each do |encoding|
+      expect(described_class.ip_address?("192.0.2.1".encode(encoding))).to be(false)
+    end
+    expect(described_class.ip_address?("192.0.2.\xFF")).to be(false)
+  end
+
   it "rejects nontext address identities and nonboolean host-bit policies at the boundary" do
     [ 12, false, [], {} ].each do |value|
       expect(described_class.ip_address?(value)).to be(false)

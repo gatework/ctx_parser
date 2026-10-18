@@ -7,6 +7,26 @@ require "ctx_parser/parser"
 require "ctx_parser/configuration"
 
 RSpec.describe CtxParser::Block do
+  it "preserves exact evidence independently of the process output separator" do
+    script = <<~'RUBY'
+      require "ctx_parser"
+      $, = "INJECTED"
+      text = "parent\r\n child\r pending\n invalid"
+      cursor = CtxParser::Cursor.new(text)
+      block = CtxParser::Block.read(cursor).first
+      capture = cursor.capture(block, data: {}, path: [])
+      abort "Block source changed" unless block.content == text
+      abort "Capture source changed" unless capture.content == text
+      cursor.mark(0)
+      cursor.mark(1, state: :ignored)
+      cursor.mark(3, state: :invalid)
+      abort "Unresolved source changed" unless cursor.unparsed_content == " pending\n invalid"
+    RUBY
+    output, error, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", script)
+
+    expect(status.success?).to be(true), "#{output}#{error}"
+  end
+
   it "retains complete indentation blocks including unknown commands, comments, and blank lines" do
     text = "! generated\r\ninterface Ethernet1/1\r\n  description edge\n\n  unknown-setting enabled\r!\rinterface Ethernet1/2\n  shutdown"
     cursor = CtxParser::Cursor.new(text)
