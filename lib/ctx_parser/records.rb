@@ -16,11 +16,23 @@ module CtxParser
       raise ArgumentError, "Identity must be a nonempty array or callable" unless identity_key
 
       @rows = rows.dup.freeze
-      identity_groups = @rows.group_by { |row| identity_key.call(row) }.values
-      @first_occurrences = identity_groups.map(&:first).freeze
-      @unambiguous = identity_groups.filter_map { |group| group.first if group.one? }.freeze
-      @duplicate_identity_count = identity_groups.count { |group| group.size > 1 }
-      @duplicate_row_count = @rows.size - identity_groups.size
+      positions = {}
+      first_occurrences, unambiguous = [], []
+      @duplicate_identity_count = 0
+      @rows.each do |row|
+        key = identity_key.call(row)
+        if (position = positions[key])
+          @duplicate_identity_count += 1 if unambiguous[position]
+          unambiguous[position] = nil
+        else
+          positions[key] = first_occurrences.size
+          first_occurrences << row
+          unambiguous << row
+        end
+      end
+      @first_occurrences = first_occurrences.freeze
+      @unambiguous = unambiguous.compact.freeze
+      @duplicate_row_count = @rows.size - first_occurrences.size
       freeze
     end
 

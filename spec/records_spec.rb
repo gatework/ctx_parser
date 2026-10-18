@@ -75,6 +75,71 @@ RSpec.describe CtxParser::Records do
     expect(records).to be_duplicates
   end
 
+  it "groups nil, false and custom equal keys while keeping numeric identities distinct" do
+    key_type = Struct.new(:name) do
+      def hash = name.downcase.hash
+      def eql?(other) = other.instance_of?(self.class) && name.casecmp?(other.name)
+    end
+    keys = [ false, nil, key_type.new("AP"), 1, 1.0, false, nil, key_type.new("ap"), :unique ]
+    rows = keys.map { |key| { id: key } }
+    records = described_class.new(rows) { |row| row.fetch(:id) }
+
+    expect(records.first_occurrences).to eq(rows.values_at(0, 1, 2, 3, 4, 8))
+    expect(records.unambiguous).to eq(rows.values_at(3, 4, 8))
+    expect(records.duplicate_identity_count).to eq(3)
+    expect(records.duplicate_row_count).to eq(3)
+  end
+
+  it "evaluates every occurrence of a shared row reference and retains the first reference" do
+    row = { id: :shared }
+    calls = 0
+    records = described_class.new([ row, row, row ]) do |entry|
+      calls += 1
+      entry.fetch(:id)
+    end
+
+    expect(calls).to eq(3)
+    expect(records.rows.map(&:object_id)).to eq([ row.object_id ] * 3)
+    expect(records.first_occurrences.first).to equal(row)
+    expect(records.unambiguous).to be_empty
+    expect(records.duplicate_identity_count).to eq(1)
+    expect(records.duplicate_row_count).to eq(2)
+  end
+
+  it "keeps the original input order when an identity callback changes the caller array" do
+    first, second, third = { id: :a }, { id: :b }, { id: :a }
+    rows = [ first, second, third ]
+    visited = []
+    records = described_class.new(rows) do |row|
+      visited << row.object_id
+      rows.replace([ { id: :replacement } ])
+      row.fetch(:id)
+    end
+
+    expect(visited).to eq([ first, second, third ].map(&:object_id))
+    expect(records.first_occurrences.map(&:object_id)).to eq([ first, second ].map(&:object_id))
+    expect(records.unambiguous.first).to equal(second)
+    expect(records.duplicate_identity_count).to eq(1)
+    expect(records.duplicate_row_count).to eq(1)
+  end
+
+  it "propagates an identity callback failure without visiting later rows" do
+    rows = [ { id: :a }, { id: :b }, { id: :c } ]
+    visited = []
+    error = Class.new(StandardError).new
+
+    expect do
+      described_class.new(rows) do |row|
+        visited << row.fetch(:id)
+        raise error if row.fetch(:id) == :b
+
+        row.fetch(:id)
+      end
+    end.to raise_error { |raised| expect(raised).to equal(error) }
+    expect(visited).to eq([ :a, :b ])
+    expect(rows).not_to be_frozen
+  end
+
   it "protects its selections without freezing or modifying caller-owned records" do
     row = { id: 1 }
     rows = [ row ]

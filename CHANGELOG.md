@@ -2,6 +2,12 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.4 (2026-10-18)
+
+- Clear Bundler bootstrap variables when verifying packages in an isolated gem installation, including calls made through bundle exec.
+
+- Reduce temporary grouping allocations in Records while preserving callback counts, identity equality, record ownership and selection order.
+
 ## 0.2.3 (2026-10-18)
 
 - Redact Result, Results and Line during pretty printing, including nested containers.
