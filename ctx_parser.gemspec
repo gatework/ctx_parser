@@ -24,5 +24,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = [ "lib" ]
 
   spec.add_dependency "digest"
-  spec.add_dependency "ipaddr"
+  spec.add_dependency "ipaddr", ">= 1.2.3"
 end

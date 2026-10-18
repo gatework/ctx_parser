@@ -20,5 +20,8 @@ module CtxParser
     # 展示对象身份与状态，避免泄露原始回显或凭据。
     def inspect = "#<#{self.class.name} status=#{status} records=#{records.size}>"
     alias to_s inspect
+
+    # PP 对 Data 默认展开成员，必须显式沿用脱敏展示。
+    def pretty_print(printer) = printer.text(inspect)
   end
 end

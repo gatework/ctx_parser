@@ -39,5 +39,8 @@ module CtxParser
     # 展示对象身份与状态，避免泄露原始回显或凭据。
     def inspect = "#<#{self.class.name} status=#{status} dimensions=#{by_dimension.keys.join(',')}>"
     alias to_s inspect
+
+    # 具名结果的嵌套展示同样不能展开事实或诊断。
+    def pretty_print(printer) = printer.text(inspect)
   end
 end

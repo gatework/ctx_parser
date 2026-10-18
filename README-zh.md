@@ -21,7 +21,7 @@ gem "ctx_parser"
 
 然后执行 `bundle install`；也可直接执行 `gem install ctx_parser`。Ruby 加载入口为 `ctx_parser`，公开命名空间为 `CtxParser`；gem 包名与 Ruby 命名空间分别维护。
 
-本模块不依赖其他 Gatework 领域 gem。 gemspec 的运行依赖不添加版本约束；应用应提交自己的 `Gemfile.lock`，保持部署可复现。使用本库不需要启动 Rails 或配置兄弟模块的本地路径。
+本模块不依赖其他 Gatework 领域 gem。 gemspec 要求 `ipaddr >= 1.2.3` 以确保严格地址解析，`digest` 不设版本约束；应用应提交自己的 `Gemfile.lock`，保持部署可复现。使用本库不需要启动 Rails 或配置兄弟模块的本地路径。
 
 发布产物和校验值见 [GitHub Releases](https://github.com/gatework/ctx_parser/releases)，已发布版本以 [RubyGems](https://rubygems.org/gems/ctx_parser) 为准。
 
@@ -70,7 +70,7 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 
 `Parser.parse(text, complete: false)` 返回包含 `status`、`records`、`issues` 的 `Result`；多视图解析器可返回 `Results`。状态为 `complete`、`partial`、`failed`、`unsupported`。子类实现 `parse_output`，配置子类通过 `analyze` 和 `capture` 保留来源。
 
-`complete: true` 只表示调用方确认输入完整接收，不证明所有语法都已理解。未知行、身份冲突及空表证据不足必须明确表达。结果的记录和诊断均须为 Hash 数组；结果及构建完成的文档诊断持有不可变快照。`inspect` 和 `to_s` 不输出结果正文与诊断内容，显式读取记录仍返回原始事实。来源游标有意保留输入原文，含秘密时不可写入日志。
+`complete: true` 只表示调用方确认输入完整接收，不证明所有语法都已理解。未知行、身份冲突及空表证据不足必须明确表达。结果的记录和诊断均须为 Hash 数组；结果及构建完成的文档诊断持有不可变快照。`inspect`、`to_s` 和 pretty printing 不输出结果正文与诊断内容，显式读取记录仍返回原始事实。来源游标有意保留输入原文，含秘密时不可写入日志。
 
 本 gem 不提供厂商命令目录、传输、持久化或健康策略。参数和注册表配置错误保持异常，由调用方在对应边界处理。
 
@@ -83,6 +83,12 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 维度是具名事实视图，命令是提供这些事实的 CLI 查询。`Profile#queries` 按命令归组维度，型号覆盖按命令选择解析器。`Records` 按逻辑身份归组记录；重复身份数与多余记录数是不同数量。`Line`、`Block`、`Capture` 保留来源位置，`Result` 承载归一化事实与诊断。解析完整性或空结果都不能证明设备健康。
 
 地址转换使用 `Values.ip_address`、`Values.ip_address?`、`Values.mac_address`。`Values.ipv4_prefix(..., preserve_host_bits: true)` 明确保留接口主机位，默认返回网段前缀。
+
+`Cursor.new(text, max_bytes: limit)` 和 `Document.new(source, max_bytes: limit)` 可在构建或消费来源行前限制输入字节数。传入已有游标时，限制针对其归一化内容。非法编码仍抛出错误；已知为 Latin-1 的输入可先标记 `Encoding::ISO_8859_1`，随后自动转为 UTF-8，不静默替换字节并生成事实。
+
+`MODEL_PARSERS` 的型号键与请求型号一样去除两侧空白并转为小写，归一化冲突和无效覆盖均被拒绝。`Registry` 在注册时校验静态命令与解析器目录；动态目录在使用时仍需校验，缺失实现抛出 `ArgumentError`。
+
+`Records` 持有自己的筛选数组，行对象仍属于调用方；使用期间应保持行不变，需要快照时传入 `Immutable.copy(rows)`。`Immutable.copy` 在逐层校验后可复用深冻结普通容器；浅冻结、特殊 Hash 行为及循环引用仍按原规则复制或拒绝。整数转换仅在 `min` 允许负数或为 `nil` 时接受负号，默认仍只接受非负数。
 
 ## 开发与测试
 
@@ -99,7 +105,9 @@ bundle exec rake build
 
 使用声明的最低 Ruby 版本检查兼容性。方法用途统一使用简明中文注释；复杂实现还需说明业务规则、实现思路及关键分支。保持公开返回值与错误契约。真实回显和凭据不可进入示例、fixture、日志或发布包。
 
-执行 `bundle exec ruby -Ilib benchmark/source.rb`，可使用合成输入和语义断言测量游标及文档构建的耗时与对象分配量，无需领域 gem。此类本地测量不代表设备性能。
+这些开发命令须在源码检出目录执行；测试、基准和脚本有意排除在安装包之外。
+
+执行 `bundle exec ruby -Ilib benchmark/snapshots.rb` 可测量冻结结果的重复封装；执行 `bundle exec ruby -Ilib benchmark/source.rb`，可使用合成输入和语义断言测量游标及文档构建的耗时与对象分配量，无需领域 gem。此类本地测量不代表设备性能。
 
 ## 发布
 

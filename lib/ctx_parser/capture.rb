@@ -1,6 +1,5 @@
 # frozen_string_literal: true
 
-require_relative "block"
 require_relative "immutable"
 
 module CtxParser
@@ -22,6 +21,7 @@ module CtxParser
 
     # 冻结解析事实及其来源块和结果路径。
     def initialize(block:, data:, path:)
+      require_relative "block" unless defined?(Block)
       raise ArgumentError, "Capture source must be a block" unless block.is_a?(Block)
 
       initialize_snapshot(block, Snapshot.new(data: data, path: path))
@@ -29,6 +29,7 @@ module CtxParser
 
     # 同一事实的多个来源共享已复制的值，不共享未经校验的调用方容器。
     def self.for_blocks(blocks, data:, path:)
+      require_relative "block" unless defined?(Block)
       unless blocks.is_a?(Array) && blocks.all? { |block| block.is_a?(Block) }
         raise ArgumentError, "Capture sources must be blocks"
       end

@@ -14,15 +14,15 @@ module CtxParser
     attr_reader :content, :lines, :checksum, :position
 
     # 为单次解析创建独立的来源行、语义状态及事实索引。
-    def initialize(content)
+    def initialize(content, max_bytes: nil)
       raise ArgumentError, "Configuration content must be text" unless content.is_a?(String)
 
-      @content = Input.text(content, encoding: :transcode).freeze
+      @content = Input.text(content, encoding: :transcode, max_bytes: max_bytes).freeze
 
       # scan 直接交付每行，避免同时保留原始行数组与 Line 数组。
       @lines = []
       @content.scan(/[^\r\n]*(?:\r\n|\r|\n)|[^\r\n]+\z/) do |raw|
-        @lines << Line.new(index: @lines.size, raw: raw)
+        @lines << Line.new(index: @lines.size, raw: raw.freeze)
       end
       @lines.freeze
       @checksum = Digest::SHA256.hexdigest(@content).freeze
@@ -135,6 +135,7 @@ module CtxParser
 
     # 注册归纳事实的不可变快照前，先校验全部来源。
     def capture_many(blocks, data:, path:)
+      require_relative "block" unless defined?(Block)
       unless blocks.is_a?(Array) && blocks.all? { |block| block.is_a?(Block) && block.cursor.equal?(self) }
         raise ArgumentError, "Blocks must belong to this cursor"
       end

@@ -6,6 +6,46 @@ require "rbconfig"
 require "json"
 
 RSpec.describe "Standalone CtxParser loading" do
+  it "validates standalone cursor capture sources without depending on root loading" do
+    script = <<~RUBY
+      require "ctx_parser/cursor"
+      cursor = CtxParser::Cursor.new("root\\n")
+      begin
+        cursor.capture(Object.new, data: {}, path: [])
+        abort "Invalid capture accepted"
+      rescue ArgumentError
+        abort "Capture registered on failure" unless cursor.captures.empty?
+      end
+    RUBY
+    _stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-w", "-I", File.expand_path("../lib", __dir__), "-e", script)
+    expect(status).to be_success, stderr
+    expect(stderr).not_to include("circular require")
+  end
+
+  it "allows a namespace autoloader to reenter the root while Parser itself is loading" do
+    script = <<~RUBY
+      autoload :CtxParser, "ctx_parser"
+      require "ctx_parser/parser"
+      abort "Base parser unavailable" unless CtxParser::Parser.respond_to?(:parse)
+    RUBY
+    _stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-I", File.expand_path("../lib", __dir__), "-e", script)
+    expect(status).to be_success, stderr
+  end
+
+  it "provides Banner from the root entrypoint without circular loading warnings" do
+    %w[ctx_parser ctx_parser/block ctx_parser/cursor ctx_parser/capture].each do |entrypoint|
+      script = <<~RUBY
+        require #{entrypoint.inspect}
+        require "ctx_parser"
+        banner = CtxParser::Banner.new
+        abort "Banner unavailable" unless banner.consume("banner motd #") && banner.open?
+      RUBY
+      _stdout, stderr, status = Open3.capture3(RbConfig.ruby, "-w", "-I", File.expand_path("../lib", __dir__), "-e", script)
+      expect(status).to be_success, stderr
+      expect(stderr).not_to include("circular require")
+    end
+  end
+
   it "loads each public abstraction directly without relying on the root entrypoint" do
     { "parser" => "Parser", "configuration" => "Configuration", "results" => "Results", "commands" => "Commands",
       "block" => "Block", "capture" => "Capture", "cursor" => "Cursor", "document" => "Document" }.each do |file, constant|

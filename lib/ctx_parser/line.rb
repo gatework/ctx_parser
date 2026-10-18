@@ -11,10 +11,10 @@ module CtxParser
       # strip 已移除行结束空白，避免 chomp 依赖宿主进程的 $/。
       @text = raw.strip.freeze
       @indent = raw[/\A[ \t]*/].size
-      super(index: index, raw: raw.dup.freeze)
+      super(index: index, raw: raw.frozen? ? raw : raw.dup.freeze)
     end
 
-    # 返回诊断使用的一起始行号。
+    # 返回诊断使用的从 1 开始的行号。
     def number = index + 1
     # 返回已去除外围缩进和行结束符的来源内容。
     def text = @text
@@ -25,5 +25,8 @@ module CtxParser
     # 展示对象身份与状态，避免泄露原始回显或凭据。
     def inspect = "#<#{self.class.name} number=#{number}>"
     alias to_s inspect
+
+    # PP 不得绕过 inspect 暴露来源行。
+    def pretty_print(printer) = printer.text(inspect)
   end
 end

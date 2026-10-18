@@ -9,8 +9,14 @@ module CtxParser
     attr_reader :cursor, :roots, :issues
 
     # 使用平台提供的注释及边界规则构建来源文档。
-    def initialize(source, comments: nil, boundaries: nil)
-      @cursor = source.is_a?(Cursor) ? source : Cursor.new(source)
+    def initialize(source, comments: nil, boundaries: nil, max_bytes: nil)
+      if source.is_a?(Cursor)
+        unless max_bytes.nil? || max_bytes.is_a?(Integer) && max_bytes >= 0
+          raise ArgumentError, "Invalid byte limit"
+        end
+        raise ArgumentError, "CLI output exceeds byte limit" if max_bytes && source.content.bytesize > max_bytes
+      end
+      @cursor = source.is_a?(Cursor) ? source : Cursor.new(source, max_bytes: max_bytes)
       @comments, @boundaries, @issues = comments, boundaries, []
       @roots = Block.read(cursor) { |line| classify(line) }
       finish

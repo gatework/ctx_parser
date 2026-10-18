@@ -21,7 +21,7 @@ gem "ctx_parser"
 
 Then run `bundle install`, or install directly with `gem install ctx_parser`. The require path is `ctx_parser` and the public namespace is `CtxParser`; package names and Ruby namespaces are intentionally separate.
 
-This package has no dependency on the other Gatework domain gems. The gemspec declares runtime dependencies without version constraints. Applications should commit their own `Gemfile.lock` to make deployments reproducible. No Rails boot or sibling checkout paths are required.
+This package has no dependency on the other Gatework domain gems. The gemspec requires `ipaddr >= 1.2.3` for strict address parsing; `digest` has no version constraint. Applications should commit their own `Gemfile.lock` to make deployments reproducible. No Rails boot or sibling checkout paths are required.
 
 Release artifacts and checksums are available from [GitHub Releases](https://github.com/gatework/ctx_parser/releases). Check [RubyGems](https://rubygems.org/gems/ctx_parser) for published versions.
 
@@ -70,7 +70,7 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 
 `Parser.parse(text, complete: false)` returns a `Result` with `status`, `records`, and `issues`; a multi-view parser can return `Results`. Result statuses are `complete`, `partial`, `failed`, and `unsupported`. Subclasses implement `parse_output`. Configuration subclasses can use `analyze` and `capture` to preserve provenance.
 
-`complete: true` confirms that the caller received the entire input; it does not certify that all syntax was understood. Unknown rows, identity conflicts, and insufficient empty-table evidence must remain explicit. Result records and issues must be arrays of hashes. Results and completed document diagnostics own immutable snapshots. `inspect` and `to_s` omit result facts and diagnostics; explicit record access still returns the original facts. Source cursors intentionally retain original input and must not be logged when it contains secrets.
+`complete: true` confirms that the caller received the entire input; it does not certify that all syntax was understood. Unknown rows, identity conflicts, and insufficient empty-table evidence must remain explicit. Result records and issues must be arrays of hashes. Results and completed document diagnostics own immutable snapshots. `inspect`, `to_s`, and pretty printing omit result facts and diagnostics; explicit record access still returns the original facts. Source cursors intentionally retain original input and must not be logged when it contains secrets.
 
 This gem supplies no vendor command declarations, transport, persistence, or health policy. Parser/registry argument errors remain exceptions for callers to handle at their own boundary.
 
@@ -83,6 +83,12 @@ Names use domain nouns: `Configuration` parses configuration documents; `Result`
 A dimension is a named view of facts; a command is the CLI query that supplies those facts. `Profile#queries` groups dimensions by command, and model overrides choose parsers for commands. `Records` groups rows by logical identity; duplicate identity counts and redundant row counts are different quantities. `Line`, `Block`, and `Capture` retain source locations, while `Result` contains normalized facts and diagnostics. Neither parsing completeness nor an empty result establishes device health.
 
 Address conversion uses `Values.ip_address`, `Values.ip_address?`, and `Values.mac_address`. `Values.ipv4_prefix(..., preserve_host_bits: true)` explicitly preserves interface host bits; its default returns a network prefix.
+
+`Cursor.new(text, max_bytes: limit)` and `Document.new(source, max_bytes: limit)` enforce an optional input byte budget before constructing or consuming lines. For an existing cursor, the budget applies to its normalized content. Invalid encoding remains an error: known Latin-1 input can be tagged as `Encoding::ISO_8859_1` before parsing and is transcoded to UTF-8; bytes are never silently scrubbed into facts.
+
+`MODEL_PARSERS` model names are stripped and lowercased just like the requested model. Normalization collisions and invalid overrides are rejected. `Registry` validates static command/parser declarations when registering a profile; dynamic directory lookup remains validated when used and reports missing implementations as `ArgumentError`.
+
+`Records` owns selection arrays, while row objects remain caller-owned: treat those rows as stable during use, or pass `Immutable.copy(rows)` when a snapshot is needed. `Immutable.copy` can reuse fully frozen plain trees after validating all descendants; shallow-frozen containers, custom Hash behavior, and cycles receive the existing copy or rejection behavior. Integer conversion accepts a minus sign only when `min` permits negative values (or is `nil`); the default remains nonnegative.
 
 ## Development and tests
 
@@ -99,7 +105,9 @@ bundle exec rake build
 
 Use the declared minimum Ruby version for compatibility checks. Document source methods and non-obvious business logic in concise Chinese, preserve public return/error contracts, and never add raw device captures or credentials to examples, fixtures, logs, or release archives.
 
-Run `bundle exec ruby -Ilib benchmark/source.rb` to measure cursor and document construction with synthetic input and semantic checks. It needs no domain gems and reports elapsed time and allocated objects; these local measurements do not establish device performance.
+Development commands below require a source checkout; tests, benchmarks, and scripts are intentionally excluded from the installed gem archive.
+
+Run `bundle exec ruby -Ilib benchmark/snapshots.rb` to measure repeated wrapping of frozen results, and `bundle exec ruby -Ilib benchmark/source.rb` to measure cursor and document construction with synthetic input and semantic checks. It needs no domain gems and reports elapsed time and allocated objects; these local measurements do not establish device performance.
 
 ## Release
 

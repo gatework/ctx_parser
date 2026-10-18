@@ -6,6 +6,13 @@ require "open3"
 require "rbconfig"
 
 RSpec.describe CtxParser::Line do
+  it "reuses frozen source bytes while preserving defensive copies for caller-owned text" do
+    raw = " hostname LAB\n".freeze
+    line = described_class.new(index: 0, raw: raw)
+    expect(line.raw).to equal(raw)
+    expect(line.text).to eq("hostname LAB")
+  end
+
   it "does not interpret the process input separator as part of the source grammar" do
     script = <<~'RUBY'
       require "ctx_parser"

@@ -4,6 +4,11 @@ require_relative "spec_helper"
 require "ctx_parser/values"
 
 RSpec.describe CtxParser::Values do
+  it "rejects ambiguous IPv4 leading zeros in both host and prefix conversions" do
+    expect(described_class.ip_address?("192.168.001.1")).to be(false)
+    expect { described_class.ipv4_prefix("192.168.001.1/24") }.to raise_error(ArgumentError)
+  end
+
   it "returns false for address text with incompatible or invalid encodings" do
     [ "UTF-16LE", "UTF-16BE", "UTF-32LE", "UTF-32BE" ].each do |encoding|
       expect(described_class.ip_address?("192.0.2.1".encode(encoding))).to be(false)

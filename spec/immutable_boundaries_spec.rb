@@ -3,6 +3,34 @@
 require_relative "spec_helper"
 
 RSpec.describe "Immutable facts and evidence" do
+  it "drops caller-owned container metadata instead of sharing its hidden mutable state" do
+    [ [], {} ].each do |source|
+      source.instance_variable_set(:@metadata, [])
+      source.freeze
+      snapshot = CtxParser::Immutable.copy(source)
+      expect(snapshot.instance_variables).to be_empty
+      expect(snapshot).not_to equal(source)
+    end
+  end
+
+  it "reuses fully frozen plain trees after validating every nested value" do
+    source = { items: [ { name: "leaf", value: 1 }.freeze ].freeze }.freeze
+    expect(CtxParser::Immutable.copy(source)).to equal(source)
+    expect(CtxParser::Immutable.copy([ source, source ].freeze)).to eq([ source, source ])
+    cyclic = []
+    cyclic << cyclic
+    cyclic.freeze
+    expect { CtxParser::Immutable.copy(cyclic) }.to raise_error(ArgumentError, /cyclic/)
+    invalid = { items: [ Object.new.freeze ].freeze }.freeze
+    expect { CtxParser::Immutable.copy(invalid) }.to raise_error(ArgumentError, /plain data/)
+  end
+
+  it "reuses validated frozen containers beyond the recursive depth limit" do
+    source = "leaf".freeze
+    100.times { source = [ source ].freeze }
+    expect(CtxParser::Immutable.copy(source)).to equal(source)
+  end
+
   it "reuses immutable strings while detaching mutable children of shallow-frozen containers" do
     label = "leaf".freeze
     caller_text = +"Ethernet1/1"

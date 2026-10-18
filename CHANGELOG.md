@@ -2,6 +2,16 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## 0.2.3 (2026-10-18)
+
+- Redact Result, Results and Line during pretty printing, including nested containers.
+- Normalize model override names, reject normalized collisions, and validate static registry command/parser consistency.
+- Report missing dynamic parser implementations as argument errors; retain dynamic command lookup.
+- Accept signed decimal integers when bounds permit negative values, and detach host-bit-preserving prefix results from caller strings.
+- Add optional byte budgets to Cursor and Document, load Banner from the root, and remove the source-type circular require.
+- Reuse validated deeply frozen plain containers and frozen source strings while preserving cycle detection and defensive copies for mutable values.
+- Require ipaddr 1.2.3 or newer for strict address parsing; retain the Ruby 4.0.6 support policy.
+
 ## 0.2.2 (2026-10-18)
 
 - Preserve exact block, capture and unresolved source text independently of Ruby's global output separator.

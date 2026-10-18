@@ -15,7 +15,8 @@ module CtxParser
         raise ArgumentError, "Invalid integer limits"
       end
       return if raw.nil?
-      unless (raw.is_a?(String) || raw.is_a?(Integer)) && /\A\d+\z/.match?(raw.to_s)
+      pattern = min.nil? || min.negative? ? /\A-?\d+\z/ : /\A\d+\z/
+      unless (raw.is_a?(String) || raw.is_a?(Integer)) && pattern.match?(raw.to_s)
         raise ArgumentError, "Invalid decimal integer"
       end
 
@@ -61,7 +62,7 @@ module CtxParser
       network = IPAddr.new(raw)
       raise ArgumentError, "IPv4 prefix required" unless network.ipv4?
 
-      preserve_host_bits ? raw : "#{network}/#{network.prefix}"
+      preserve_host_bits ? raw.dup : "#{network}/#{network.prefix}"
     end
   end
 end

@@ -18,9 +18,10 @@ module CtxParser
           @aliases.values.all? { |key| @profiles.key?(key) } && (@profiles.keys & @aliases.keys).empty?
         raise ArgumentError, "Invalid parser registry"
       end
+      @profiles.each_value(&:validate_declarations!)
     end
 
-    # 解析请求的解析结果或平台策略，拒绝未知名称。
+    # 按平台或别名创建 Profile 实例，拒绝未知名称。
     def fetch(platform, model: nil)
       key = platform_key(platform)
       key = @aliases.fetch(key, key)

@@ -23,6 +23,7 @@ module CtxParser
             child.index > previous_index && child.last_index <= last_index && child.header.indent > header.indent
 
           previous_index = child.last_index
+          true
         end
         raise ArgumentError, "Child blocks must be ordered within their parent source"
       end
@@ -88,7 +89,7 @@ module CtxParser
 
     # 返回配置块标题的零起始索引。
     def index = header.index
-    # 返回配置块标题的一起始来源行号。
+    # 返回配置块标题从 1 开始的来源行号。
     def line = header.number
     # 返回已去除外围缩进和行结束符的来源内容。
     def text = header.text
