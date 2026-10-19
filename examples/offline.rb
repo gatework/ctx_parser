@@ -10,7 +10,7 @@ class ExampleStatusParser < CtxParser::Parser
   def parse_output(text, complete:)
     records = []
     issues = []
-    text.each_line.with_index(1) do |line, number|
+    text.each_line("\n").with_index(1) do |line, number|
       next if line.strip.empty?
 
       match = /\A([A-Za-z0-9\/]+) (up|down)\z/.match(line.strip)

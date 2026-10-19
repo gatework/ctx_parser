@@ -46,7 +46,7 @@ class ExampleStatusParser < CtxParser::Parser
   def parse_output(text, complete:)
     records = []
     issues = []
-    text.each_line.with_index(1) do |line, number|
+    text.each_line("\n").with_index(1) do |line, number|
       next if line.strip.empty?
 
       match = /\A([A-Za-z0-9\/]+) (up|down)\z/.match(line.strip)
@@ -87,6 +87,8 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 `Cursor.new(text, max_bytes: limit)` 和 `Document.new(source, max_bytes: limit)` 可在构建或消费来源行前限制输入字节数。传入已有游标时，限制针对其归一化内容。非法编码仍抛出错误；已知为 Latin-1 的输入可先标记 `Encoding::ISO_8859_1`，随后自动转为 UTF-8，不静默替换字节并生成事实。
 
 `MODEL_PARSERS` 的型号键与请求型号一样去除两侧空白并转为小写，归一化冲突和无效覆盖均被拒绝。`Registry` 在注册时校验静态命令与解析器目录；动态目录在使用时仍需校验，缺失实现抛出 `ArgumentError`。
+
+Profile 为深冻结的普通命令目录复用查询列表与成员索引，包括发现阶段产生的目录。替换目录后重建索引；可变条目仍在每次查找时校验。`bundle exec ruby -Ilib benchmark/profile.rb` 测量 32、128、512 条合成命令的准备开销，并校验选择顺序与未知命令拒绝行为。
 
 `Records` 持有自己的筛选数组，行对象仍属于调用方；使用期间应保持行不变，需要快照时传入 `Immutable.copy(rows)`。`Immutable.copy` 在逐层校验后可复用深冻结普通容器；浅冻结、特殊 Hash 行为及循环引用仍按原规则复制或拒绝。整数转换仅在 `min` 允许负数或为 `nil` 时接受负号，默认仍只接受非负数。
 

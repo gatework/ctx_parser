@@ -2,6 +2,13 @@
 
 Changes to the public contract are recorded here. Versions follow Semantic Versioning.
 
+## Unreleased
+
+## 0.2.5 (2026-10-19)
+
+- Keep offline example facts and configuration benchmark inputs independent of Ruby's global input and output separators.
+- Reuse validated dynamic command directories and membership indexes when their complete contents are frozen, avoiding repeated full-directory validation during discovered-query preparation. Mutable and replaced directories retain current lookup semantics.
+
 ## 0.2.4 (2026-10-18)
 
 - Clear Bundler bootstrap variables when verifying packages in an isolated gem installation, including calls made through bundle exec.

@@ -97,6 +97,86 @@ RSpec.describe "Reviewed public boundaries" do
     expect(type.new.command(second)).to eq("show second")
   end
 
+  it "reuses expanded frozen queries when validating every discovered command", :aggregate_failures do
+    queries = 128.times.map { |index| "show port #{index}".freeze }.freeze
+    type = Class.new(CtxParser::Profile) do
+      attr_accessor :directory
+      attr_reader :validated_entries
+
+      def commands = directory
+
+      private
+
+      def validated_queries(declaration)
+        @validated_entries = (@validated_entries || 0) + Array(declaration).size
+        super
+      end
+    end
+    type.const_set(:PARSERS, queries.to_h { |query| [ query, parser ] }.freeze)
+    profile = type.new
+    profile.directory = { inventory: queries }.freeze
+    first = profile.commands_for(:inventory)
+    queries.each { |query| expect(profile.parser_for(:inventory, command: query)).to equal(parser) }
+
+    expect(profile.commands_for(:inventory)).to equal(first)
+    expect(profile.validated_entries).to eq(queries.size)
+    expect { profile.parser_for(:inventory, command: "show absent") }.to raise_error(ArgumentError)
+  end
+
+  it "refreshes a duplicated profile after its frozen discovery directory is replaced" do
+    type = Class.new(CtxParser::Profile) { attr_accessor :directory; def commands = directory }
+    type.const_set(:PARSERS, { "show first" => parser, "show second" => parser })
+    original = type.new
+    original.directory = { inventory: [ "show first" ].freeze }.freeze
+    expect(original.command(:inventory)).to eq("show first")
+    expanded = original.dup
+    expanded.directory = { inventory: [ "show second" ].freeze }.freeze
+
+    expect(expanded.parser_for(:inventory, command: "show second")).to equal(parser)
+    expect { expanded.parser_for(:inventory, command: "show first") }.to raise_error(ArgumentError)
+    expect(original.command(:inventory)).to eq("show first")
+  end
+
+  it "continues validating mutable children of a frozen dynamic directory" do
+    type = Class.new(CtxParser::Profile) { attr_accessor :directory; def commands = directory }
+    type.const_set(:PARSERS, { "show first" => parser, "show second" => parser })
+    profile = type.new
+    query = +"show first"
+    profile.directory = { inventory: [ query ].freeze }.freeze
+    expect(profile.command(:inventory)).to eq("show first")
+    query.replace("show second")
+    expect(profile.parser_for(:inventory, command: "show second")).to equal(parser)
+    expect { profile.parser_for(:inventory, command: "show first") }.to raise_error(ArgumentError)
+    query.replace("show invalid\nreload")
+    expect { profile.command(:inventory) }.to raise_error(ArgumentError)
+
+    queries = [ "show first" ]
+    profile.directory = { inventory: queries }.freeze
+    expect(profile.command(:inventory)).to eq("show first")
+    queries.replace([ "show second" ])
+    expect(profile.command(:inventory)).to eq("show second")
+  end
+
+  it "keeps frozen profiles readable without populating a new dynamic cache" do
+    type = Class.new(CtxParser::Profile) { attr_accessor :directory; def commands = directory }
+    type.const_set(:PARSERS, { "show inventory" => parser })
+    profile = type.new
+    profile.directory = { inventory: [ "show inventory" ].freeze }.freeze
+    profile.freeze
+
+    expect(profile.parser_for(:inventory)).to equal(parser)
+  end
+
+  it "validates an unused malformed dynamic declaration only when requested" do
+    type = Class.new(CtxParser::Profile) { attr_accessor :directory; def commands = directory }
+    type.const_set(:PARSERS, { "show inventory" => parser })
+    profile = type.new
+    profile.directory = { inventory: "show inventory", other: [ "bad\ncommand" ].freeze }.freeze
+
+    expect(profile.parser_for(:inventory)).to equal(parser)
+    expect { profile.command(:other) }.to raise_error(ArgumentError)
+  end
+
   it "supports signed decimal values within explicitly permitted negative bounds" do
     expect(CtxParser::Values.integer(-5, min: -10)).to eq(-5)
     expect(CtxParser::Values.integer("-5", min: -10, max: -1)).to eq(-5)

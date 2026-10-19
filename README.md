@@ -46,7 +46,7 @@ class ExampleStatusParser < CtxParser::Parser
   def parse_output(text, complete:)
     records = []
     issues = []
-    text.each_line.with_index(1) do |line, number|
+    text.each_line("\n").with_index(1) do |line, number|
       next if line.strip.empty?
 
       match = /\A([A-Za-z0-9\/]+) (up|down)\z/.match(line.strip)
@@ -87,6 +87,8 @@ Address conversion uses `Values.ip_address`, `Values.ip_address?`, and `Values.m
 `Cursor.new(text, max_bytes: limit)` and `Document.new(source, max_bytes: limit)` enforce an optional input byte budget before constructing or consuming lines. For an existing cursor, the budget applies to its normalized content. Invalid encoding remains an error: known Latin-1 input can be tagged as `Encoding::ISO_8859_1` before parsing and is transcoded to UTF-8; bytes are never silently scrubbed into facts.
 
 `MODEL_PARSERS` model names are stripped and lowercased just like the requested model. Normalization collisions and invalid overrides are rejected. `Registry` validates static command/parser declarations when registering a profile; dynamic directory lookup remains validated when used and reports missing implementations as `ArgumentError`.
+
+Profiles reuse query lists and membership indexes for fully frozen plain command directories, including directories created by discovery. Replacing a directory rebuilds its index; mutable entries are validated on each lookup. `bundle exec ruby -Ilib benchmark/profile.rb` measures preparation of 32, 128 and 512 synthetic commands and checks selection order and rejection of unknown commands.
 
 `Records` owns selection arrays, while row objects remain caller-owned: treat those rows as stable during use, or pass `Immutable.copy(rows)` when a snapshot is needed. `Immutable.copy` can reuse fully frozen plain trees after validating all descendants; shallow-frozen containers, custom Hash behavior, and cycles receive the existing copy or rejection behavior. Integer conversion accepts a minus sign only when `min` permits negative values (or is `nil`); the default remains nonnegative.
 

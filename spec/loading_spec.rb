@@ -6,6 +6,21 @@ require "rbconfig"
 require "json"
 
 RSpec.describe "Standalone CtxParser loading" do
+  it "keeps the offline example facts independent of process source separators" do
+    script = <<~'RUBY'
+      $/ = nil
+      $, = "separator"
+      load "examples/offline.rb"
+      result = ExampleStatusParser.parse("Eth1/1 up\nEth1/2 down\n", complete: true)
+      expected = [{ name: "Eth1/1", state: :up }, { name: "Eth1/2", state: :down }]
+      abort "Example facts changed" unless result.complete? && result.records == expected && result.issues.empty?
+    RUBY
+    output, error, status = Open3.capture3(RbConfig.ruby, "-Ilib", "-e", script)
+
+    expect(status.success?).to be(true), "#{output}#{error}"
+    expect(output).to eq("Parse status: complete\nEth1/1: up\nEth1/2: down\n")
+  end
+
   it "validates standalone cursor capture sources without depending on root loading" do
     script = <<~RUBY
       require "ctx_parser/cursor"

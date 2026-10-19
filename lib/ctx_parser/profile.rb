@@ -17,8 +17,7 @@ module CtxParser
 
       @model = model&.strip&.downcase&.freeze
       @model_parsers = model_parser_overrides
-      @static_commands = self.class::COMMANDS
-      @command_queries = compile_commands(@static_commands)
+      cache_commands(self.class::COMMANDS, strict: true)
     end
 
     # 注册时核对静态目录；动态实例仍在实际查询时重新校验。
@@ -73,7 +72,8 @@ module CtxParser
     def commands_for(name)
       directory = commands
       declaration = directory.fetch(name) { raise ArgumentError, "Unsupported parser dimension" }
-      return @command_queries.fetch(name) if @command_queries && directory.equal?(@static_commands)
+      cached = cache_commands(directory)
+      return cached[:queries].fetch(name) if cached
 
       validated_queries(declaration)
     end
@@ -111,12 +111,32 @@ module CtxParser
 
     private
 
-    # 仅为深冻结的静态目录建立快照；可变或被替换的目录仍走实时校验。
+    # 发现阶段可替换实例目录；只缓存当前深冻结目录，不继承旧目录的选择结果。
+    def cache_commands(directory, strict: false)
+      cached = @command_cache
+      return cached if cached && directory.equal?(cached[:directory])
+      return if frozen?
+
+      queries = compile_commands(directory)
+      return unless queries
+
+      membership = queries.transform_values { |entries| entries.to_h { |query| [ query, true ] }.freeze }.freeze
+      # 一次发布完整索引；并发查找只读取自己取得的快照，不混合两份目录。
+      @command_cache = { directory: directory, queries: queries, membership: membership }.freeze
+    rescue ArgumentError
+      # 动态目录仍按请求维度报错，未使用的无效声明不能阻断其他维度。
+      raise if strict
+
+      nil
+    end
+
+    # 可变容器或文本仍逐次校验；普通深冻结目录允许共享验证后的顺序与成员索引。
     def compile_commands(directory)
       return unless directory.instance_of?(Hash) && directory.frozen? && !directory.compare_by_identity? &&
           directory.keys.all? { |name| name.is_a?(Symbol) && !name.empty? } && directory.values.all? do |value|
         entries = value.is_a?(Array) ? value : [ value ]
-        (!value.is_a?(Array) || value.frozen?) && entries.all? { |query| query.is_a?(String) && query.frozen? }
+        (!value.is_a?(Array) || value.instance_of?(Array) && value.frozen?) &&
+          entries.all? { |query| query.instance_of?(String) && query.frozen? }
       end
 
       directory.to_h { |name, declaration| [ name, validated_queries(declaration) ] }.freeze
@@ -134,13 +154,26 @@ module CtxParser
 
     # 仅当存在唯一公共查询时允许推断；显式命令必须覆盖全部请求视图。
     def select_command(dimensions, selected)
-      candidates = dimensions.map { |name| commands_for(name) }.reduce { |common, queries| common & queries }
+      declarations = dimensions.map do |name|
+        queries = commands_for(name)
+        cached = @command_cache
+        membership = cached[:membership][name] if cached && queries.equal?(cached[:queries][name])
+        [ queries, membership ]
+      end
       if selected.nil?
+        candidates = declarations.map(&:first).reduce { |common, queries| common & queries }
         raise ArgumentError, "One CLI output must belong to one command" unless candidates.one?
 
         candidates.first
       else
-        raise ArgumentError, "Selected command does not provide all parser dimensions" unless candidates.include?(selected)
+        supported = declarations.all? do |queries, membership|
+          if selected.instance_of?(String) && membership
+            membership.key?(selected)
+          else
+            queries.include?(selected)
+          end
+        end
+        raise ArgumentError, "Selected command does not provide all parser dimensions" unless supported
 
         selected
       end
