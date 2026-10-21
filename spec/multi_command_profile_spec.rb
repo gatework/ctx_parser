@@ -93,6 +93,21 @@ RSpec.describe "Profiles with independent commands for a dimension" do
     end
   end
 
+  it "keeps the requested views when a parser callback changes the caller selection" do
+    dimensions = %i[counters interfaces]
+    original = first_parser.method(:parse)
+    first_parser.define_singleton_method(:parse) do |text, complete: false|
+      dimensions.replace([ :alarms ])
+      original.call(text, complete: complete)
+    end
+
+    result = profile.parse_many(dimensions, "input body", complete: true)
+
+    expect(result.keys).to eq(%i[counters interfaces])
+    expect(result.values).to all(be_complete)
+    expect(dimensions).to eq([ :alarms ])
+  end
+
   it "applies a model override to the selected query without changing its other query" do
     variant = Class.new(second_parser)
     overrides = { "show output counters" => variant }

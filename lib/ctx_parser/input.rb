@@ -18,14 +18,18 @@ module CtxParser
       value.force_encoding(Encoding::UTF_8) if encoding == :utf8 || value.encoding == Encoding::BINARY
       raise EncodingError, "CLI output encoding is invalid" unless value.valid_encoding?
 
-      value = value.encode(Encoding::UTF_8) if encoding == :transcode
+      value = value.encode(Encoding::UTF_8) if encoding == :transcode && value.encoding != Encoding::UTF_8
       # UTF-16/32 等编码不兼容 ASCII 字面量；仅在临时视图上检查逻辑字符。
       logical = value.encoding.ascii_compatible? ? value : value.encode(Encoding::UTF_8)
       raise ArgumentError, "CLI output contains a NUL byte" if !allow_nul && logical.include?("\0")
 
       normalized = case newlines
-      when :lf then logical.gsub(/\r\n?/, "\n")
-      when :delete_cr then logical.delete("\r")
+      when :lf
+        logical.gsub!(/\r\n?/, "\n") if logical.include?("\r")
+        logical
+      when :delete_cr
+        logical.delete!("\r")
+        logical
       else return value
       end
       normalized.encoding == value.encoding ? normalized : normalized.encode(value.encoding)

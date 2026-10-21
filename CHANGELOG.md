@@ -4,6 +4,14 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.2.6 (2026-10-21)
+
+- Build immutable hash snapshots without temporary field-pair arrays, retaining ordinary key equality, cycle rejection and deep-tree support.
+
+- Add repository-specific AGENTS.md guidance for responsibilities, Ruby conventions, evidence boundaries and validation.
+- Snapshot requested profile views before parser callbacks can mutate caller selections.
+- Avoid redundant UTF-8 conversion and line-ending replacement for already normalized inputs while preserving mutable detached return values.
+
 ## 0.2.5 (2026-10-19)
 
 - Keep offline example facts and configuration benchmark inputs independent of Ruby's global input and output separators.

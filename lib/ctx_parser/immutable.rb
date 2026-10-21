@@ -28,7 +28,9 @@ module CtxParser
           return value
         end
         copies[value] = if value.is_a?(Hash)
-          value.to_h { |key, item| [ copy_value(key, copies, depth + 1), copy_value(item, copies, depth + 1) ] }.freeze
+          result = {}
+          value.each_pair { |key, item| result[copy_value(key, copies, depth + 1)] = copy_value(item, copies, depth + 1) }
+          result.freeze
         else
           value.map { |item| copy_value(item, copies, depth + 1) }.freeze
         end
@@ -69,7 +71,9 @@ module CtxParser
           copies[source] = if reusable?(source, copies, 0)
             source
           elsif source.is_a?(Hash)
-            source.to_h { |key, item| [ snapshot(key, copies), snapshot(item, copies) ] }.freeze
+            result = {}
+            source.each_pair { |key, item| result[snapshot(key, copies)] = snapshot(item, copies) }
+            result.freeze
           else
             source.map { |item| snapshot(item, copies) }.freeze
           end

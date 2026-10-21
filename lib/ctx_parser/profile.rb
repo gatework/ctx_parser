@@ -102,6 +102,8 @@ module CtxParser
       unless dimensions.is_a?(Array) && dimensions.any? && dimensions.uniq == dimensions
         raise ArgumentError, "Parser dimensions must be a nonempty unique array"
       end
+      # 扩展解析器可调用外部代码；结果投影始终使用入口处的请求。
+      dimensions = dimensions.dup.freeze
       query = select_command(dimensions, command)
 
       # 查询已覆盖全部请求维度，无需再次遍历第一个维度的完整命令列表。
