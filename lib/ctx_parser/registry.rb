@@ -23,10 +23,15 @@ module CtxParser
 
     # 按平台或别名创建 Profile 实例，拒绝未知名称。
     def fetch(platform, model: nil)
+      @profiles.fetch(canonical(platform)).new(model: model)
+    end
+
+    # 平台身份与 Profile 选择使用同一套归一化和别名规则。
+    def canonical(platform)
       key = platform_key(platform)
       key = @aliases.fetch(key, key)
-      profile = @profiles.fetch(key) { raise ArgumentError, "Unsupported parser platform" }
-      profile.new(model: model)
+      raise ArgumentError, "Unsupported parser platform" unless @profiles.key?(key)
+      key
     end
 
     private

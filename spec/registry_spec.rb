@@ -21,6 +21,7 @@ RSpec.describe CtxParser::Registry do
     profiles.clear
     aliases.clear
 
+    expect(registry.canonical(" DEVICE ")).to eq(:platform)
     expect(registry.fetch(" DEVICE ", model: " MODEL ")).to be_a(profile)
     expect(registry.fetch(:platform, model: " MODEL ").model).to eq("model")
     expect { registry.fetch(:missing) }.to raise_error(ArgumentError, "Unsupported parser platform")
