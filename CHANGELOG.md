@@ -4,6 +4,10 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.2.8 (2026-10-23)
+
+- Remove the extra minimum version requirement for the standard-library ipaddr dependency.
+
 ## 0.2.7 (2026-10-23)
 
 - Expose one canonical platform lookup shared by profile selection and consuming checkers.
