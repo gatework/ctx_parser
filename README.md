@@ -21,7 +21,7 @@ gem "ctx_parser"
 
 Then run `bundle install`, or install directly with `gem install ctx_parser`. The require path is `ctx_parser` and the public namespace is `CtxParser`; package names and Ruby namespaces are intentionally separate.
 
-This package has no dependency on the other Gatework domain gems. The gemspec requires `ipaddr >= 1.2.3` for strict address parsing; `digest` has no version constraint. Applications should commit their own `Gemfile.lock` to make deployments reproducible. No Rails boot or sibling checkout paths are required.
+This package has no dependency on the other Gatework domain gems. The gemspec declares `ipaddr` and `digest` without version constraints. Select and validate the runtime dependency combination in the application lockfile. Applications should commit their own `Gemfile.lock` to make deployments reproducible. No Rails boot or sibling checkout paths are required.
 
 Release artifacts and checksums are available from [GitHub Releases](https://github.com/gatework/ctx_parser/releases). Check [RubyGems](https://rubygems.org/gems/ctx_parser) for published versions.
 

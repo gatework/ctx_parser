@@ -21,7 +21,7 @@ gem "ctx_parser"
 
 然后执行 `bundle install`；也可直接执行 `gem install ctx_parser`。Ruby 加载入口为 `ctx_parser`，公开命名空间为 `CtxParser`；gem 包名与 Ruby 命名空间分别维护。
 
-本模块不依赖其他 Gatework 领域 gem。 gemspec 要求 `ipaddr >= 1.2.3` 以确保严格地址解析，`digest` 不设版本约束；应用应提交自己的 `Gemfile.lock`，保持部署可复现。使用本库不需要启动 Rails 或配置兄弟模块的本地路径。
+本模块不依赖其他 Gatework 领域 gem。 gemspec 声明 `ipaddr` 和 `digest`，不限制版本；运行依赖组合应由应用锁文件固定并验证；应用应提交自己的 `Gemfile.lock`，保持部署可复现。使用本库不需要启动 Rails 或配置兄弟模块的本地路径。
 
 发布产物和校验值见 [GitHub Releases](https://github.com/gatework/ctx_parser/releases)，已发布版本以 [RubyGems](https://rubygems.org/gems/ctx_parser) 为准。
 
