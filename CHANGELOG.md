@@ -4,6 +4,10 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.3.0 (2026-10-29)
+
+- Add `Result#partial?` and `#available?`; reject records on failed or unsupported results.
+
 ## 0.2.9 (2026-10-24)
 
 - Correct dependency documentation to match the unconstrained ipaddr and digest declarations; applications select and validate their runtime dependency combination.

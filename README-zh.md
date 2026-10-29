@@ -122,3 +122,6 @@ CI 在 Linux、macOS 上执行测试、lint、示例、构建和隔离安装。`
 ## 许可证
 
 MIT，见 [LICENSE](LICENSE)。
+
+
+`Result#partial?` identifies partial parsing; `#available?` is true for complete or partial results. Failed and unsupported results cannot contain records. Availability does not establish completeness or network health.

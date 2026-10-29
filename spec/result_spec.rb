@@ -3,6 +3,17 @@
 require_relative "spec_helper"
 
 RSpec.describe CtxParser::Result do
+  it "rejects facts on unavailable results and keeps partial facts available" do
+    %i[failed unsupported].each do |status|
+      expect { described_class.new(status: status, records: [ { name: "eth0" } ]) }.to raise_error(ArgumentError)
+      expect(described_class.new(status: status)).not_to be_available
+    end
+    partial = described_class.new(status: :partial, records: [ { name: "eth0" } ])
+    expect(partial).to be_partial
+    expect(partial).to be_available
+    expect(described_class.new(status: :complete)).to be_available
+  end
+
   it "rejects malformed diagnostics before they reach result aggregation or consumers" do
     [ nil, false, "invalid", {}, [ nil ], [ :invalid ], [ "invalid" ] ].each do |issues|
       expect { described_class.new(status: :partial, issues: issues) }.to raise_error(ArgumentError)

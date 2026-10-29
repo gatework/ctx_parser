@@ -122,3 +122,6 @@ Publish dependency gems first. A Git tag, a successful build, or a workflow file
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+`Result#partial?` identifies partial parsing; `#available?` is true for complete or partial results. Failed and unsupported results cannot contain records. Availability does not establish completeness or network health.
