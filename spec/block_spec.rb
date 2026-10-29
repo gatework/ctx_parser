@@ -199,7 +199,7 @@ RSpec.describe CtxParser::Block do
     expect(parser.cursor).not_to equal(original_cursor)
     expect(original_block.content).to eq("hostname FIRST\n")
     expect(parser.blocks.first.content).to eq("hostname SECOND\n")
-    expect(result.to_h.keys).to contain_exactly(:status, :records, :issues)
+    expect(result.to_h.keys).to contain_exactly(:status, :records, :issues, :covered_scopes)
     expect { parser.parse(nil) }.to raise_error(ArgumentError)
     expect(parser.cursor).to be_nil
     expect(parser.blocks).to be_empty

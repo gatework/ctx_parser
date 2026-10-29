@@ -4,18 +4,21 @@ require_relative "immutable"
 
 module CtxParser
   # 仅保存解析结果；采集命令、时间与证据由调用方管理。
-  Result = Data.define(:status, :records, :issues) do
+  Result = Data.define(:status, :records, :issues, :covered_scopes) do
     # 冻结解析状态、归一化记录与诊断证据。
-    def initialize(status:, records: [], issues: [])
+    def initialize(status:, records: [], issues: [], covered_scopes: [])
       raise ArgumentError, "Invalid parser status" unless %i[complete partial failed unsupported].include?(status)
       raise ArgumentError, "Records must be hashes" unless records.is_a?(Array) && records.all? { |row| row.is_a?(Hash) }
       raise ArgumentError, "Issues must be hashes" unless issues.is_a?(Array) && issues.all? { |issue| issue.is_a?(Hash) }
-
-      if %i[failed unsupported].include?(status) && records.any?
-        raise ArgumentError, "Unavailable parser results cannot contain records"
+      unless covered_scopes.is_a?(Array) && covered_scopes.all? { |scope| scope.is_a?(Hash) } && covered_scopes.uniq == covered_scopes
+        raise ArgumentError, "Covered scopes must be unique hashes"
       end
 
-      super(status: status, records: Immutable.copy(records), issues: Immutable.copy(issues))
+      if %i[failed unsupported].include?(status) && (records.any? || covered_scopes.any?)
+        raise ArgumentError, "Unavailable parser results cannot contain records or covered scopes"
+      end
+
+      super(status: status, records: Immutable.copy(records), issues: Immutable.copy(issues), covered_scopes: Immutable.copy(covered_scopes))
     end
 
     # 判断解析结果是否具有完整证据。

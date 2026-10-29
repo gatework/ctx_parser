@@ -7,6 +7,14 @@ module CtxParser
   class Commands
     attr_reader :entries, :by_dimension, :parsers
 
+    # 查询文本的唯一值边界；复制后冻结，不冻结调用方提供的字符串。
+    def self.command_text(value)
+      unless value.is_a?(String) && !value.strip.empty? && !/[\x00-\x1f\x7f]/.match?(value)
+        raise ArgumentError, "One command without control characters is required"
+      end
+      value.frozen? ? value : value.dup.freeze
+    end
+
     # 校验并冻结受支持的维度到命令声明。
     def initialize(entries, multi_command: false)
       unless entries.is_a?(Array) && entries.any?
@@ -36,13 +44,10 @@ module CtxParser
           dimensions.uniq == dimensions && (@multi_command || dimensions.none? { |name| @by_dimension.key?(name) })
         raise ArgumentError, "Command dimensions must be unique nonempty symbols"
       end
-      unless command.is_a?(String) && !command.strip.empty? && !/[\x00-\x1f\x7f]/.match?(command)
-        raise ArgumentError, "Command must be nonempty text without control characters"
-      end
+      command = self.class.command_text(command)
       raise ArgumentError, "Command is already declared" if @parsers.key?(command)
       raise ArgumentError, "Command parser must inherit from Parser" unless parser.is_a?(Class) && parser < Parser
 
-      command = command.dup.freeze
       dimensions = dimensions.dup.freeze
       dimensions.each do |name|
         # 索引数组由本实例持有，构建完成后统一冻结；追加不复制已有命令。

@@ -23,6 +23,8 @@ Gem::Specification.new do |spec|
   spec.files = Dir.chdir(__dir__) { Dir["lib/**/*.rb", "examples/**/*.rb", "docs/**/*.md", "README*.md", "CHANGELOG.md", "LICENSE"].sort }
   spec.require_paths = [ "lib" ]
 
+  spec.add_dependency "date"
+  spec.add_dependency "time"
   spec.add_dependency "digest"
   spec.add_dependency "ipaddr"
 end

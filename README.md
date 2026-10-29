@@ -125,3 +125,5 @@ MIT. See [LICENSE](LICENSE).
 
 
 `Result#partial?` identifies partial parsing; `#available?` is true for complete or partial results. Failed and unsupported results cannot contain records. Availability does not establish completeness or network health.
+
+本次使用 ctx_parser 0.4 系列契约；`Result` 新增 `covered_scopes`，单行命令统一由 `CtxParser::Commands.command_text` 校验。跨模块约定见 [ctx_runner 契约迁移](https://github.com/gatework/ctx_runner/blob/main/docs/contracts-2026-10-29.md)。

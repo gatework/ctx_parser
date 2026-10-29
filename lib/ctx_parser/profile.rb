@@ -45,7 +45,10 @@ module CtxParser
 
     # 校验静态目录中的单命令文本，不接受控制字符。
     def self.valid_command?(value)
-      value.is_a?(String) && !value.strip.empty? && !/[\x00-\x1f\x7f]/.match?(value)
+      Commands.command_text(value)
+      true
+    rescue ArgumentError
+      false
     end
     private_class_method :valid_command?
 
@@ -147,11 +150,11 @@ module CtxParser
     # 查询快照不冻结调用方的数组或字符串。
     def validated_queries(declaration)
       queries = declaration.is_a?(Array) ? declaration : [ declaration ]
-      unless queries.any? && queries.uniq == queries && queries.all? { |query| query.is_a?(String) && !query.strip.empty? && !/[\x00-\x1f\x7f]/.match?(query) }
+      unless queries.any? && queries.uniq == queries
         raise ArgumentError, "Parser dimension must declare one or more unique commands"
       end
 
-      queries.map { |query| query.frozen? ? query : query.dup.freeze }.freeze
+      queries.map { |query| Commands.command_text(query) }.freeze
     end
 
     # 仅当存在唯一公共查询时允许推断；显式命令必须覆盖全部请求视图。

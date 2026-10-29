@@ -4,6 +4,18 @@ require_relative "spec_helper"
 require "ctx_parser/values"
 
 RSpec.describe CtxParser::Values do
+  it "normalizes explicit timestamps without accepting normalized invalid dates" do
+    text = +"2026-10-29T10:00:00.123456+08:00"
+    value = described_class.timestamp(text)
+    text.clear
+    expect(value).to eq(Time.utc(2026, 10, 29, 2, 0, 0, 123456))
+    expect(value).to be_frozen
+    [ nil, Time.now, "2026-02-30T00:00:00Z", "2026-10-29T24:00:00Z", "2026-10-29T00:00:00",
+      "2026-10-29T00:00:00+24:00", "2026-10-29T00:00:00+08:60" ].each do |invalid|
+      expect { described_class.timestamp(invalid) }.to raise_error(ArgumentError)
+    end
+  end
+
   it "rejects ambiguous IPv4 leading zeros in both host and prefix conversions" do
     expect(described_class.ip_address?("192.168.001.1")).to be(false)
     expect { described_class.ipv4_prefix("192.168.001.1/24") }.to raise_error(ArgumentError)

@@ -3,6 +3,27 @@
 require_relative "spec_helper"
 
 RSpec.describe CtxParser::Result do
+  it "includes covered scopes in every Ruby value operation" do
+    scopes = [ { vrf: +"blue", process_id: +"1" } ]
+    result = described_class.new(status: :complete, covered_scopes: scopes)
+    other = result.with(covered_scopes: [ { vrf: "red", process_id: "1" } ])
+    scopes.first[:vrf].replace("changed")
+    expect(result.covered_scopes).to eq([ { vrf: "blue", process_id: "1" } ])
+    expect(result.with(status: :partial).covered_scopes).to eq(result.covered_scopes)
+    expect(result.to_h).to eq(result.deconstruct_keys(nil))
+    expect(result.deconstruct.last).to eq(result.covered_scopes)
+    expect(result).not_to eq(other)
+    expect({ result => true }).not_to have_key(other)
+    expect(scopes).not_to be_frozen
+    expect { result.covered_scopes.first[:vrf].replace("bad") }.to raise_error(FrozenError)
+  end
+
+  it "does not attach coverage claims to unavailable results" do
+    %i[failed unsupported].each do |status|
+      expect { described_class.new(status: status, covered_scopes: [ { vrf: "blue" } ]) }.to raise_error(ArgumentError)
+    end
+  end
+
   it "rejects facts on unavailable results and keeps partial facts available" do
     %i[failed unsupported].each do |status|
       expect { described_class.new(status: status, records: [ { name: "eth0" } ]) }.to raise_error(ArgumentError)

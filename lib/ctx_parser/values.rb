@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "ipaddr"
+require "time"
+require "date"
 
 module CtxParser
   # 严格转换标量；单位及可选字段语法仍由命令解析器负责。
@@ -8,6 +10,19 @@ module CtxParser
     class OutOfRange < ArgumentError; end
 
     module_function
+
+    # 严格时刻包含时区；拒绝 Time.iso8601 自动归一化的非法日期或时分秒。
+    def timestamp(raw)
+      unless raw.is_a?(String) && /\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\z/.match?(raw)
+        raise ArgumentError, "Timestamp requires an explicit offset"
+      end
+      Date.iso8601(raw[0, 10])
+      if raw[11, 2].to_i >= 24 || raw[14, 2].to_i >= 60 || raw[17, 2].to_i >= 60 ||
+          (offset = /[+-](\d{2}):(\d{2})\z/.match(raw)) && (offset[1].to_i >= 24 || offset[2].to_i >= 60)
+        raise ArgumentError, "Invalid timestamp"
+      end
+      Time.iso8601(raw).getutc.freeze
+    end
 
     # 解析十进制整数，并校验声明的边界。
     def integer(raw, min: 0, max: nil)

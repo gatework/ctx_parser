@@ -4,6 +4,11 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.4.0 (2026-10-29)
+
+- Add immutable `covered_scopes` to Result, including equality, hashing, pattern matching and `with` semantics.
+- Centralize single-line command validation in `Commands.command_text` and strict UTC timestamp parsing in `Values.timestamp`.
+
 ## 0.3.0 (2026-10-29)
 
 - Add `Result#partial?` and `#available?`; reject records on failed or unsupported results.
