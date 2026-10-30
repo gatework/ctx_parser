@@ -25,12 +25,20 @@ module CtxParser
         @lines << Line.new(index: @lines.size, raw: raw.freeze)
       end
       @lines.freeze
+      @line_blocks = {}
       @checksum = Digest::SHA256.hexdigest(@content).freeze
       reset!
     end
 
     # 返回原始来源行数。
     def size = lines.size
+
+    # 单行范围按需复用；回退和重置只改变状态，不改变不可变来源块。
+    def block(index)
+      validate_index!(index)
+      require_relative "block" unless defined?(Block)
+      @line_blocks[index] ||= Block.new(cursor: self, header: lines[index], children: [], last_index: index)
+    end
     # 判断游标是否到达来源末尾。
     def eof? = position >= size
     # 查看下一来源行，不推进游标也不修改状态。

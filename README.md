@@ -94,6 +94,8 @@ Address conversion uses `Values.ip_address`, `Values.ip_address?`, and `Values.m
 
 `Records` owns selection arrays, while row objects remain caller-owned: treat those rows as stable during use, or pass `Immutable.copy(rows)` when a snapshot is needed. `Immutable.copy` rebuilds containers even when frozen, preserves shared references within each copy, and rejects cycles. This removes attached state, Hash defaults and singleton behavior without scanning method tables or maintaining a global cache. String snapshots use `String.new` followed by Ruby string deduplication; encoding and bytes are preserved. Container identity is not preserved across separate copies. `Immutable.copy_string` provides the same text boundary without allocating a container traversal map. Integer conversion accepts a minus sign only when `min` permits negative values (or is `nil`); the default remains nonnegative.
 
+`Document` builds indentation-based trees by default. Native grammars may override protected `build_blocks` and return ordered, non-overlapping root Blocks from the same cursor; `finish` still runs afterward. Block children must be contained and ordered, but need not have greater indentation. `Document::Flat` treats each command as an independent source block. `cursor.block(index)` reuses a one-line range; rewind/reset preserve its identity while completeness follows current cursor state. These APIs are provided by the paired 0.5.1 candidate; vendor grammar remains in consumers.
+
 ## Development and tests
 
 Name shared classes by their responsibility and use the namespace for platform context. Preserve filenames and class names that directly match device commands.

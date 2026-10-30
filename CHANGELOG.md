@@ -4,6 +4,12 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.5.1 (2026-10-30)
+
+- Add `Document#build_blocks` for native syntax trees and `Document::Flat` for independent command lines, sharing initialization, finalization and root validation.
+- Validate Block children by source ownership, containment and order; indentation remains the responsibility of the default tree builder.
+- Add cached `Cursor#block(index)` source ranges whose state stays live across rewind and reset.
+
 ## 0.5.0 (2026-10-30)
 
 - Add Cursor#resolved? with a lazy, invalidated prefix index; Block/Capture completeness remains live after state changes and reset.

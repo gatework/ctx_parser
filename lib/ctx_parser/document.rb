@@ -4,7 +4,7 @@ require_relative "cursor"
 require_relative "block"
 
 module CtxParser
-  # 持有配置树及诊断；分类器负责语法，Block 负责缩进范围。
+  # 持有配置树及诊断；构建器解释语法，Block 只约束来源范围。
   class Document
     attr_reader :cursor, :roots, :issues
 
@@ -18,7 +18,8 @@ module CtxParser
       end
       @cursor = source.is_a?(Cursor) ? source : Cursor.new(source, max_bytes: max_bytes)
       @comments, @boundaries, @issues = comments, boundaries, []
-      @roots = Block.read(cursor) { |line| classify(line) }
+      cursor.rewind
+      @roots = validate_roots(build_blocks)
       finish
       @issues = Immutable.copy(@issues)
     end
@@ -33,6 +34,9 @@ module CtxParser
 
     protected
 
+    # 默认按缩进构建；原生语法可覆盖此步骤，继续共享来源初始化和校验。
+    def build_blocks = Block.read(cursor) { |line| classify(line) }
+
     # 允许有状态词法分析器将行分类为配置条目、忽略行或边界。
     def classify(line)
       return :boundary if @boundaries&.match?(line.text)
@@ -43,5 +47,39 @@ module CtxParser
 
     # 允许词法分析器在文档结束时报告未闭合上下文，不向公共配置块添加词法状态。
     def finish; end
+
+    private
+
+    # 根块可以留出注释或边界行，但不能重叠、倒序或引用别的来源。
+    def validate_roots(entries)
+      entries = Array.new(entries) if entries.is_a?(Array)
+      previous = -1
+      unless entries.is_a?(Array) && entries.all? do |entry|
+          next false unless entry.is_a?(Block) && entry.cursor.equal?(cursor) && entry.index > previous
+
+          previous = entry.last_index
+          true
+        end
+        raise ArgumentError, "Root blocks must be ordered within this document"
+      end
+      entries.freeze
+    end
+
+    # set 等逐行配置没有缩进父子关系，每行独立保留来源状态。
+    class Flat < Document
+      protected
+
+      def build_blocks
+        entries = []
+        while (line = cursor.read)
+          case classify(line)
+          when :entry then entries << cursor.block(line.index)
+          when :ignored, :boundary then cursor.mark(line.index, state: :ignored)
+          else raise ArgumentError, "Invalid source line disposition"
+          end
+        end
+        entries
+      end
+    end
   end
 end

@@ -21,7 +21,7 @@ module CtxParser
       previous_index = header.index
       unless children.is_a?(Array) && children.all? do |child|
           next false unless child.is_a?(Block) && child.cursor.equal?(cursor) &&
-            child.index > previous_index && child.last_index <= last_index && child.header.indent > header.indent
+            child.index > previous_index && child.last_index <= last_index
 
           previous_index = child.last_index
           true
