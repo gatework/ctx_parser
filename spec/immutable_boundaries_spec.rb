@@ -3,6 +3,112 @@
 require_relative "spec_helper"
 
 RSpec.describe "Immutable facts and evidence" do
+  it "does not let an array mapping override freeze the caller or bypass nested copying" do
+    source = [ +"fact" ]
+    def source.map = self
+    def source.each = raise("Caller iteration must not run")
+    nested = source
+    100.times { nested = [ nested ] }
+    [ source, nested ].each do |input|
+      snapshot = CtxParser::Immutable.copy(input)
+      snapshot = snapshot.first until snapshot.first.is_a?(String)
+      expect(snapshot).to eq([ "fact" ])
+      expect(snapshot).not_to equal(source)
+      expect(snapshot.first).to be_frozen
+    end
+    expect(source).not_to be_frozen
+    expect(source.first).not_to be_frozen
+  end
+
+  it "does not inherit behavior added later to a module on a frozen input" do
+    extension = Module.new
+    source = { name: "leaf" }.extend(extension).freeze
+    snapshot = CtxParser::Immutable.copy(source)
+    extension.define_method(:external_state) { [] }
+    expect(source.respond_to?(:external_state)).to be(true)
+    expect(snapshot.respond_to?(:external_state)).to be(false)
+    expect(snapshot).to eq(name: "leaf")
+  end
+
+  it "preserves string encodings and invalid bytes without retaining caller behavior" do
+    [ Encoding::UTF_8, Encoding::BINARY, Encoding::US_ASCII, Encoding::ISO_8859_1 ].each do |encoding|
+      [ "", "abc" ].each do |text|
+        source = String.new(text, encoding: encoding)
+        snapshot = CtxParser::Immutable.copy_string(source)
+        expect(snapshot.encoding).to eq(encoding)
+        expect(snapshot.bytes).to eq(source.bytes)
+        expect(source).not_to be_frozen
+      end
+    end
+    source = "\xFF".dup.force_encoding(Encoding::UTF_8)
+    expect(CtxParser::Immutable.copy_string(source).bytes).to eq([ 255 ])
+    expect(CtxParser::Immutable.copy_string(source).encoding).to eq(Encoding::UTF_8)
+  end
+
+  it "strips private singleton behavior including overrides of core private methods" do
+    [ +"fact", [ 1 ], { value: 1 } ].each do |source|
+      source.define_singleton_method(:hidden_state) { [] }
+      source.define_singleton_method(:initialize_copy) { |_other| }
+      source.singleton_class.send(:private, :hidden_state, :initialize_copy)
+      source.freeze
+      snapshot = CtxParser::Immutable.copy(source)
+      expect(snapshot).to eq(source)
+      expect(snapshot).not_to equal(source)
+      expect(snapshot.respond_to?(:hidden_state, true)).to be(false)
+      expect(snapshot.method(:initialize_copy).owner).to eq(snapshot.class)
+    end
+  end
+
+  it "drops singleton behavior on otherwise frozen plain containers" do
+    [ [ 1 ], { value: 1 } ].each do |source|
+      def source.to_s = "custom behavior"
+      source.freeze
+      snapshot = CtxParser::Immutable.copy(source)
+      expect(snapshot).to eq(source)
+      expect(snapshot).not_to equal(source)
+      expect(snapshot.singleton_methods).to be_empty
+    end
+  end
+
+  it "normalizes strings at command, input and source-line boundaries" do
+    source = Class.new(String).new("show inventory\r\n")
+    source.instance_variable_set(:@metadata, [])
+    input = CtxParser::Input.text(source)
+    line = CtxParser::Line.new(index: 0, raw: source)
+    command = CtxParser::Commands.command_text(source.strip)
+    [ input, line.raw, command ].each do |text|
+      expect(text).to be_instance_of(String)
+      expect(text.instance_variables).to be_empty
+    end
+    expect(input).to eq(source)
+    expect(line.raw).to eq(source)
+    expect(source).not_to be_frozen
+    source.define_singleton_method(:bytesize) { 0 }
+    expect { CtxParser::Input.text(source, max_bytes: 1) }.to raise_error(ArgumentError, /byte limit/)
+  end
+
+  it "strips string subclasses, attached metadata and singleton behavior from snapshots" do
+    custom = Class.new(String).new("fact")
+    decorated = +"fact"
+    decorated.instance_variable_set(:@metadata, [])
+    special = +"fact"
+    def special.to_s = "caller behavior"
+
+    [ custom, decorated, special ].each do |source|
+      [ source, source.dup.freeze ].each do |value|
+        snapshot = CtxParser::Immutable.copy(value)
+        expect(snapshot).to be_instance_of(String)
+        expect(snapshot).to eq("fact")
+        expect(snapshot.to_s).to eq("fact")
+        expect(snapshot.instance_variables).to be_empty
+        expect(snapshot).to be_frozen
+      end
+    end
+    expect(decorated.instance_variable_get(:@metadata)).not_to be_frozen
+    frozen_special = special.freeze
+    expect(CtxParser::Immutable.copy(frozen_special).to_s).to eq("fact")
+  end
+
   it "drops caller-owned container metadata instead of sharing its hidden mutable state" do
     [ [], {} ].each do |source|
       source.instance_variable_set(:@metadata, [])
@@ -13,10 +119,12 @@ RSpec.describe "Immutable facts and evidence" do
     end
   end
 
-  it "reuses fully frozen plain trees after validating every nested value" do
+  it "copies frozen trees while preserving sharing within the new snapshot" do
     source = { items: [ { name: "leaf", value: 1 }.freeze ].freeze }.freeze
-    expect(CtxParser::Immutable.copy(source)).to equal(source)
-    expect(CtxParser::Immutable.copy([ source, source ].freeze)).to eq([ source, source ])
+    snapshot = CtxParser::Immutable.copy([ source, source ].freeze)
+    expect(snapshot).to eq([ source, source ])
+    expect(snapshot.first).to equal(snapshot.last)
+    expect(snapshot.first).not_to equal(source)
     cyclic = []
     cyclic << cyclic
     cyclic.freeze
@@ -25,10 +133,13 @@ RSpec.describe "Immutable facts and evidence" do
     expect { CtxParser::Immutable.copy(invalid) }.to raise_error(ArgumentError, /plain data/)
   end
 
-  it "reuses validated frozen containers beyond the recursive depth limit" do
+  it "copies frozen containers beyond the recursive depth limit" do
     source = "leaf".freeze
     100.times { source = [ source ].freeze }
-    expect(CtxParser::Immutable.copy(source)).to equal(source)
+    snapshot = CtxParser::Immutable.copy(source)
+    expect(snapshot).not_to equal(source)
+    100.times { snapshot = snapshot.first; expect(snapshot).to be_frozen }
+    expect(snapshot).to eq("leaf")
   end
 
   it "reuses immutable strings while detaching mutable children of shallow-frozen containers" do

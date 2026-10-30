@@ -27,8 +27,7 @@ end
   end
   declarations = CtxParser::Commands.new(entries, multi_command: true)
   profile = Class.new(CtxParser::Profile)
-  profile.const_set(:COMMANDS, declarations.by_dimension)
-  profile.const_set(:PARSERS, declarations.parsers)
+  profile.const_set(:DECLARATIONS, declarations)
   instance = profile.new
   3.times do |trial|
     GC.start

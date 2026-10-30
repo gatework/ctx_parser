@@ -72,6 +72,8 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 
 `complete: true` confirms that the caller received the entire input; it does not certify that all syntax was understood. Unknown rows, identity conflicts, and insufficient empty-table evidence must remain explicit. Result records and issues must be arrays of hashes. Results and completed document diagnostics own immutable snapshots. `inspect`, `to_s`, and pretty printing omit result facts and diagnostics; explicit record access still returns the original facts. Source cursors intentionally retain original input and must not be logged when it contains secrets.
 
+`Cursor#resolved?(first_index, last_index)` queries a zero-based inclusive source range. Block and Capture completeness stays live; a lazy prefix index is invalidated when resolved state changes and cleared by reset. See the [0.5 contracts](docs/contracts-0.5.md).
+
 This gem supplies no vendor command declarations, transport, persistence, or health policy. Parser/registry argument errors remain exceptions for callers to handle at their own boundary.
 
 Detailed vendor behavior, historical validation notes, and Motor-only integration are preserved in [the architecture reference](docs/architecture-zh.md). Host integration examples in that reference require Motor; they are not standalone gem APIs. Motor adapters live under `backend/lib/baseline`, `backend/lib/vxlan`, and `backend/lib/wireless` in the [Motor repository](https://github.com/gatework/motor/tree/main/backend/lib).
@@ -86,11 +88,11 @@ Address conversion uses `Values.ip_address`, `Values.ip_address?`, and `Values.m
 
 `Cursor.new(text, max_bytes: limit)` and `Document.new(source, max_bytes: limit)` enforce an optional input byte budget before constructing or consuming lines. For an existing cursor, the budget applies to its normalized content. Invalid encoding remains an error: known Latin-1 input can be tagged as `Encoding::ISO_8859_1` before parsing and is transcoded to UTF-8; bytes are never silently scrubbed into facts.
 
-`MODEL_PARSERS` model names are stripped and lowercased just like the requested model. Normalization collisions and invalid overrides are rejected. `Registry` validates static command/parser declarations when registering a profile; dynamic directory lookup remains validated when used and reports missing implementations as `ArgumentError`.
+`MODEL_PARSERS` model names are stripped and lowercased just like the requested model. Normalization collisions and invalid overrides are rejected. `Registry` validates Commands declarations and model overrides when registering a profile. `Profile` snapshots the selected overrides; a derived profile retains those overrides even if the original model mapping is later changed.
 
-Profiles reuse query lists and membership indexes for fully frozen plain command directories, including directories created by discovery. Replacing a directory rebuilds its index; mutable entries are validated on each lookup. `bundle exec ruby -Ilib benchmark/profile.rb` measures preparation of 32, 128 and 512 synthetic commands and checks selection order and rejection of unknown commands.
+`Commands` owns immutable query lists and a command-to-view index. Declare `DECLARATIONS = CtxParser::Commands.new(...)`, or pass `declarations:` to `Profile.new`. Discovery returns `profile.with_declarations(new_catalog)`; existing profiles keep their original catalog. `commands` and `parsers` are read-only derived views. Independent `COMMANDS`/`PARSERS` declarations are rejected. Empty catalogs are valid, while selecting an absent dimension raises `ArgumentError`. See [the 0.5 contract and migration guide](docs/contracts-0.5.md). `benchmark/profile.rb` exercises 32, 128, 512 and 4096 commands; `benchmark/commands.rb` also measures catalog construction.
 
-`Records` owns selection arrays, while row objects remain caller-owned: treat those rows as stable during use, or pass `Immutable.copy(rows)` when a snapshot is needed. `Immutable.copy` can reuse fully frozen plain trees after validating all descendants; shallow-frozen containers, custom Hash behavior, and cycles receive the existing copy or rejection behavior. Integer conversion accepts a minus sign only when `min` permits negative values (or is `nil`); the default remains nonnegative.
+`Records` owns selection arrays, while row objects remain caller-owned: treat those rows as stable during use, or pass `Immutable.copy(rows)` when a snapshot is needed. `Immutable.copy` rebuilds containers even when frozen, preserves shared references within each copy, and rejects cycles. This removes attached state, Hash defaults and singleton behavior without scanning method tables or maintaining a global cache. String snapshots use `String.new` followed by Ruby string deduplication; encoding and bytes are preserved. Container identity is not preserved across separate copies. `Immutable.copy_string` provides the same text boundary without allocating a container traversal map. Integer conversion accepts a minus sign only when `min` permits negative values (or is `nil`); the default remains nonnegative.
 
 ## Development and tests
 
@@ -126,4 +128,4 @@ MIT. See [LICENSE](LICENSE).
 
 `Result#partial?` identifies partial parsing; `#available?` is true for complete or partial results. Failed and unsupported results cannot contain records. Availability does not establish completeness or network health.
 
-本次使用 ctx_parser 0.4 系列契约；`Result` 新增 `covered_scopes`，单行命令统一由 `CtxParser::Commands.command_text` 校验。跨模块约定见 [ctx_runner 契约迁移](https://github.com/gatework/ctx_runner/blob/main/docs/contracts-2026-10-29.md)。
+The 0.5 series changes profile declarations; Result fields, including `covered_scopes`, remain unchanged. Cross-module contracts are described in the [Runner migration guide](https://github.com/gatework/ctx_runner/blob/main/docs/contracts-2026-10-29.md).

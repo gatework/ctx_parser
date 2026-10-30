@@ -7,6 +7,30 @@ RSpec.describe CtxParser::Commands do
   let(:parser) { Class.new(CtxParser::Parser) }
   let(:entry) { { dimensions: %i[access_points radios], command: +"display ap verbose", parser: parser } }
 
+  it "represents an empty catalog without inventing a selectable command" do
+    commands = described_class.new([])
+    expect(commands.entries).to eq([])
+    expect(commands.by_dimension).to eq({})
+    expect(commands.parsers).to eq({})
+    expect(commands.queries([])).to eq({})
+    expect { commands.select_command([]) }.to raise_error(ArgumentError)
+    expect { commands.commands_for(:missing) }.to raise_error(ArgumentError)
+  end
+
+  it "owns the selected text and provides immutable query lists and plans" do
+    commands = described_class.new([ entry ])
+    text = +"display ap verbose"
+    selected = commands.select_command(%i[access_points radios], command: text)
+    text.replace("changed")
+    expect(selected).to eq("display ap verbose")
+    expect(selected).to be_frozen
+    expect(commands.commands_for(:radios)).to equal(commands.commands_for(:radios))
+    expect(commands.queries(%i[radios access_points])).to eq("display ap verbose" => %i[radios access_points])
+    expect { commands.queries([ :radios ]).values.first.clear }.to raise_error(FrozenError)
+    expect { commands.select_command([ :missing ], command: selected) }.to raise_error(ArgumentError)
+    expect { commands.select_command([ :radios ], command: false) }.to raise_error(ArgumentError)
+  end
+
   it "indexes multiple views of one command without taking ownership of the caller's declaration" do
     declarations = [ entry ]
     commands = described_class.new(declarations)
@@ -38,7 +62,7 @@ RSpec.describe CtxParser::Commands do
   end
 
   it "rejects incomplete declarations and invalid dimension identities" do
-    [ nil, {}, [], [ nil ], [ entry.except(:parser) ], [ entry.merge(typo: true) ] ].each do |declarations|
+    [ nil, {}, [ nil ], [ entry.except(:parser) ], [ entry.merge(typo: true) ] ].each do |declarations|
       expect { described_class.new(declarations) }.to raise_error(ArgumentError)
     end
     [ nil, [], :clients, [ "clients" ], [ :"" ] ].each do |dimensions|

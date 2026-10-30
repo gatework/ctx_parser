@@ -71,11 +71,32 @@ module CtxParser
     # 独立检查游标是否访问过该行，不与解释成功混淆。
     def visited?(index) = valid_index?(index) ? @visited[index] : nil
 
+    # 查询零起始闭区间的实时解决状态；索引按需延伸，重复查询不再扫描每行。
+    def resolved?(first_index, last_index)
+      validate_index!(first_index)
+      validate_index!(last_index)
+      raise ArgumentError, "Source range must be ordered" if first_index > last_index
+      return false unless RESOLVED_STATES.include?(@states[first_index])
+      return true if first_index == last_index
+
+      @unresolved_prefix ||= [ 0 ]
+      while @indexed_states <= last_index
+        unresolved = RESOLVED_STATES.include?(@states[@indexed_states]) ? 0 : 1
+        @unresolved_prefix[@indexed_states + 1] = @unresolved_prefix[@indexed_states] + unresolved
+        @indexed_states += 1
+      end
+      @unresolved_prefix[last_index + 1] == @unresolved_prefix[first_index]
+    end
+
     # 为有效来源行记录明确的语义状态。
     def mark(index, state: :parsed)
       validate_index!(index)
       raise ArgumentError, "Invalid line state" unless STATES.include?(state)
 
+      # 只有跨越解决/未解决分组才使后缀失效；未查询的来源不承担索引构建成本。
+      if index < @indexed_states && RESOLVED_STATES.include?(@states[index]) != RESOLVED_STATES.include?(state)
+        @indexed_states = index
+      end
       @states[index] = state
       self
     end
@@ -89,6 +110,7 @@ module CtxParser
     # 清空访问、语义状态及捕获事实，重新开始分析。
     def reset!
       @states = Array.new(size, :pending)
+      @unresolved_prefix, @indexed_states = nil, 0
       @visited = Array.new(size, false)
       @captures = []
       @captures_by_path, @ordered_by_path = {}, {}
@@ -136,6 +158,7 @@ module CtxParser
     # 注册归纳事实的不可变快照前，先校验全部来源。
     def capture_many(blocks, data:, path:)
       require_relative "block" unless defined?(Block)
+      blocks = Array.new(blocks) if blocks.is_a?(Array)
       unless blocks.is_a?(Array) && blocks.all? { |block| block.is_a?(Block) && block.cursor.equal?(self) }
         raise ArgumentError, "Blocks must belong to this cursor"
       end

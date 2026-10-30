@@ -7,6 +7,7 @@ module CtxParser
 
     # 冻结筛选结果数组，记录值的所有权仍属于调用方。
     def initialize(rows, identity: nil, &identity_key)
+      rows = Array.new(rows) if rows.is_a?(Array)
       unless rows.is_a?(Array) && rows.all? { |row| row.is_a?(Hash) }
         raise ArgumentError, "Records must be hashes"
       end
@@ -15,7 +16,7 @@ module CtxParser
       identity_key ||= ->(row) { row.values_at(*identity) } if identity.is_a?(Array) && identity.any?
       raise ArgumentError, "Identity must be a nonempty array or callable" unless identity_key
 
-      @rows = rows.dup.freeze
+      @rows = rows.freeze
       positions = {}
       first_occurrences, unambiguous = [], []
       @duplicate_identity_count = 0

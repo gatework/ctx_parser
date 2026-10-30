@@ -2,19 +2,42 @@
 
 require "digest"
 require "json"
-require "baseline"
+require "ctx_parser"
+
+# 自包含合成语法只用于衡量来源追溯，不依赖宿主或厂商模块。
+class BenchmarkConfiguration < CtxParser::Configuration
+  private
+
+  def parse_output(text, complete:)
+    data = { hostname: nil, servers: [] }
+    sources = []
+    read_configuration(text).each do |block|
+      analyze(block) do
+        case block.text
+        when /\Ahostname (\S+)\z/ then data[:hostname] = Regexp.last_match(1)
+        when /\Antp server (\S+)\z/
+          data[:servers] << Regexp.last_match(1)
+          sources << block
+        else ignore(block)
+        end
+      end
+    end
+    cursor.capture_many(sources, data: data[:servers], path: [ :servers ])
+    CtxParser::Result.new(status: complete && cursor.unparsed_lines.empty? ? :complete : :partial, records: [ data ])
+  end
+end
 
 # 输入构造不计入耗时，并校验每次被测解析的结果。
 input = "hostname LEAF\n" + (1..10_000).map do |index|
   "interface Ethernet1/#{index}\n description Test port #{index}\n"
 end.join("")
-expected = Baseline::CiscoNxos::Parser.parse("hostname LEAF\n", complete: true).to_h
-unless expected[:status] == :complete && expected.dig(:records, 0, "facts", "hostname") == "LEAF"
+expected = BenchmarkConfiguration.parse("hostname LEAF\n", complete: true).to_h
+unless expected[:status] == :complete && expected.dig(:records, 0, :hostname) == "LEAF"
   abort "Unexpected baseline facts"
 end
 
 puts RUBY_DESCRIPTION
-puts "source=#{Baseline::CiscoNxos::Parser.instance_method(:parse_output).source_location.first}"
+puts "source=#{BenchmarkConfiguration.instance_method(:parse_output).source_location.first}"
 puts "result_sha256=#{Digest::SHA256.hexdigest(JSON.generate(expected))}"
 
 # 计时排除输入构造及语义断言；分配量仅统计被测工作。
@@ -31,7 +54,7 @@ end
 
 3.times do |trial|
   outputs = measure("configuration", trial, input_bytes: input.bytesize, input_lines: input.lines("\n").size, parses: 3) do
-    3.times.map { Baseline::CiscoNxos::Parser.parse(input, complete: true).to_h }
+    3.times.map { BenchmarkConfiguration.parse(input, complete: true).to_h }
   end
   abort "Parsed output changed" unless outputs.all? { |output| output == expected }
 end
@@ -41,9 +64,9 @@ servers = (1..1000).map { |index| "10.0.#{index / 256}.#{index % 256}" }
 source = "hostname LEAF\n" + servers.map { |server| "ntp server #{server}\n" }.join("")
 3.times do |trial|
   parser = measure("fact_sources", trial, input_bytes: source.bytesize, source_count: servers.size, parses: 1) do
-    Baseline::CiscoNxos::Parser.new.tap { |instance| instance.parse(source, complete: true) }
+    BenchmarkConfiguration.new.tap { |instance| instance.parse(source, complete: true) }
   end
-  captures = parser.cursor.captures_for([ "facts", "ntp.servers" ])
+  captures = parser.cursor.captures_for([ :servers ])
   unless captures.size == servers.size && captures.all? { |capture| capture.data == servers } &&
       captures.map(&:line_range) == (2..1001).map { |number| number..number }
     abort "Captured facts or provenance changed"

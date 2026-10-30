@@ -72,6 +72,8 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 
 `complete: true` 只表示调用方确认输入完整接收，不证明所有语法都已理解。未知行、身份冲突及空表证据不足必须明确表达。结果的记录和诊断均须为 Hash 数组；结果及构建完成的文档诊断持有不可变快照。`inspect`、`to_s` 和 pretty printing 不输出结果正文与诊断内容，显式读取记录仍返回原始事实。来源游标有意保留输入原文，含秘密时不可写入日志。
 
+`Cursor#resolved?(first_index, last_index)` 查询零起始闭区间；Block/Capture 完整性继续读取实时来源状态。惰性前缀索引在解决状态变化后失效，reset 时清空，详见 [0.5 契约](docs/contracts-0.5.md)。
+
 本 gem 不提供厂商命令目录、传输、持久化或健康策略。参数和注册表配置错误保持异常，由调用方在对应边界处理。
 
 详细厂商语义、历史验证记录和 Motor 专用集成说明保留在[架构参考](docs/architecture-zh.md)。其中宿主集成代码需要 Motor，不属于独立 gem API。适配层位于 [Motor 仓库](https://github.com/gatework/motor/tree/main/backend/lib) 的 `backend/lib/baseline`、`backend/lib/vxlan` 和 `backend/lib/wireless`。
@@ -86,11 +88,11 @@ result.records.each { |row| puts "#{row[:name]}: #{row[:state]}" }
 
 `Cursor.new(text, max_bytes: limit)` 和 `Document.new(source, max_bytes: limit)` 可在构建或消费来源行前限制输入字节数。传入已有游标时，限制针对其归一化内容。非法编码仍抛出错误；已知为 Latin-1 的输入可先标记 `Encoding::ISO_8859_1`，随后自动转为 UTF-8，不静默替换字节并生成事实。
 
-`MODEL_PARSERS` 的型号键与请求型号一样去除两侧空白并转为小写，归一化冲突和无效覆盖均被拒绝。`Registry` 在注册时校验静态命令与解析器目录；动态目录在使用时仍需校验，缺失实现抛出 `ArgumentError`。
+`MODEL_PARSERS` 的型号键与请求型号一样去除两侧空白并转为小写，归一化冲突和无效覆盖均被拒绝。`Registry` 在注册时校验 Commands 声明及型号覆盖；Profile 创建时快照选中的覆盖，派生实例继续持有原先的型号设置。
 
-Profile 为深冻结的普通命令目录复用查询列表与成员索引，包括发现阶段产生的目录。替换目录后重建索引；可变条目仍在每次查找时校验。`bundle exec ruby -Ilib benchmark/profile.rb` 测量 32、128、512 条合成命令的准备开销，并校验选择顺序与未知命令拒绝行为。
+`Commands` 独立持有不可变查询序列及命令到视图的索引。静态声明使用 `DECLARATIONS = CtxParser::Commands.new(...)`，也可向 `Profile.new` 传入 `declarations:`。发现阶段通过 `profile.with_declarations(new_catalog)` 返回副本，原实例保留原目录。`commands`、`parsers` 只是派生查询接口，旧的 `COMMANDS/PARSERS` 双目录声明会被拒绝。空目录合法，查询不存在的维度仍抛出 `ArgumentError`。详见 [0.5 契约与迁移](docs/contracts-0.5.md)。`benchmark/profile.rb` 覆盖 32–4096 条命令，`benchmark/commands.rb` 同时测量声明构造成本。
 
-`Records` 持有自己的筛选数组，行对象仍属于调用方；使用期间应保持行不变，需要快照时传入 `Immutable.copy(rows)`。`Immutable.copy` 在逐层校验后可复用深冻结普通容器；浅冻结、特殊 Hash 行为及循环引用仍按原规则复制或拒绝。整数转换仅在 `min` 允许负数或为 `nil` 时接受负号，默认仍只接受非负数。
+`Records` 持有自己的筛选数组，行对象仍属于调用方；使用期间应保持行不变，需要快照时传入 `Immutable.copy(rows)`。`Immutable.copy` 即使遇到冻结容器也重建普通容器，单次复制中保留共享引用并拒绝循环；不扫描方法表，也不引入应用级全局缓存。字符串经 `String.new` 和 Ruby 去重后冻结，保留编码与字节。不同次复制不保证容器对象身份相同；`Immutable.copy_string` 提供相同的文本边界并省去容器遍历表。整数转换仅在 `min` 允许负数或为 `nil` 时接受负号，默认仍只接受非负数。
 
 ## 开发与测试
 

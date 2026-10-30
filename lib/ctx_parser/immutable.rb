@@ -11,6 +11,13 @@ module CtxParser
       copy_value(value, {}.compare_by_identity, 0)
     end
 
+    # 重建纯文本后交给 Ruby 去重，不继承任何可见性的方法或附加状态。
+    def self.copy_string(value)
+      raise ArgumentError, "Value must be text" unless value.is_a?(String)
+
+      -String.new(value)
+    end
+
     # 普通常量浅树沿用 Ruby 的映射；递归深度有界，深链交给显式后序栈。
     def self.copy_value(value, copies, depth)
       case value
@@ -23,18 +30,14 @@ module CtxParser
         return copy_deep(value, copies) if depth == 64
 
         copies[value] = COPYING
-        if reusable?(value, copies, depth)
-          copies[value] = value
-          return value
-        end
         copies[value] = if value.is_a?(Hash)
           result = {}
           value.each_pair { |key, item| result[copy_value(key, copies, depth + 1)] = copy_value(item, copies, depth + 1) }
           result.freeze
         else
-          value.map { |item| copy_value(item, copies, depth + 1) }.freeze
+          Array.new(value).map! { |item| copy_value(item, copies, depth + 1) }.freeze
         end
-      when String then value.frozen? ? value : value.dup.freeze
+      when String then copy_string(value)
       when Symbol, Integer, Float, Rational, NilClass, TrueClass, FalseClass then value
       when Complex
         # Complex 自身冻结，但可包含调用方定义的可变 Numeric 分量。
@@ -46,36 +49,18 @@ module CtxParser
     end
     private_class_method :copy_value
 
-    # 仅复用无特殊 Hash 行为的深冻结普通容器；逐层验证，不信任外层 frozen?。
-    def self.reusable?(value, copies, depth)
-      return false unless value.frozen? && value.instance_variables.empty?
-      if value.instance_of?(Array)
-        value.all? { |item| copy_value(item, copies, depth + 1).equal?(item) }
-      elsif value.instance_of?(Hash) && value.default.nil? && !value.default_proc && !value.compare_by_identity?
-        value.each_pair do |key, item|
-          return false unless copy_value(key, copies, depth + 1).equal?(key) && copy_value(item, copies, depth + 1).equal?(item)
-        end
-        true
-      else
-        false
-      end
-    end
-    private_class_method :reusable?
-
     # 容器缓存按来源身份查找，普通 Hash 的键仍沿用值相等语义。
     def self.copy_deep(value, copies)
       pending = [ [ value, false ] ]
       until pending.empty?
         source, finishing = pending.pop
         if finishing
-          copies[source] = if reusable?(source, copies, 0)
-            source
-          elsif source.is_a?(Hash)
+          copies[source] = if source.is_a?(Hash)
             result = {}
             source.each_pair { |key, item| result[snapshot(key, copies)] = snapshot(item, copies) }
             result.freeze
           else
-            source.map { |item| snapshot(item, copies) }.freeze
+            Array.new(source).map! { |item| snapshot(item, copies) }.freeze
           end
           next
         end
@@ -93,7 +78,7 @@ module CtxParser
             pending << [ key, false ] if container?(key)
           end
         else
-          source.each { |item| pending << [ item, false ] if container?(item) }
+          Array.new(source).each { |item| pending << [ item, false ] if container?(item) }
         end
       end
       copies.fetch(value)

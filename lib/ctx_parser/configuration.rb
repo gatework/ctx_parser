@@ -32,6 +32,12 @@ module CtxParser
 
     # 仅在解释成功后标记来源行；嵌套转换失败归因到最内层来源。
     def analyze(block)
+      validate_source!(block)
+      analyze_source(block) { yield }
+    end
+
+    # 来源参数错误不进入语义异常处理，避免污染当前文档或遮盖原异常。
+    def analyze_source(block)
       value = yield
       cursor.mark(block.index, state: :parsed) if cursor.state(block.index) == :pending
       if cursor.state(block.index) == :parsed
@@ -53,12 +59,15 @@ module CtxParser
 
     # 各子节点独立保留来源状态及错误位置。
     def analyze_children(block, &operation)
+      validate_source!(block)
       block.children.each { |child| analyze(child) { operation.call(child) } }
     end
 
     # 进入临时结果路径，成功或失败后均恢复父作用域。
     def scope(block, path)
       previous_path = @source_path
+      validate_source!(block)
+      path = Capture.path_snapshot(path)
       @source_path = path
       value = yield
       capture(block, value, path)
@@ -74,6 +83,7 @@ module CtxParser
 
     # 迭代忽略领域外子树，不宣称其产生已解析事实。
     def ignore(block)
+      validate_source!(block)
       pending = [ block ]
       until pending.empty?
         entry = pending.pop
@@ -81,6 +91,13 @@ module CtxParser
         pending.concat(entry.children)
       end
       nil
+    end
+
+    # 每次分析只接受当前文档的来源块，校验必须早于外部回调。
+    def validate_source!(block)
+      unless block.is_a?(Block) && block.cursor.equal?(cursor)
+        raise ArgumentError, "Source block must belong to this cursor"
+      end
     end
 
     # 未处理的子节点保持待解析；具体解析器可诊断位置错误的相关命令。

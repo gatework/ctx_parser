@@ -4,6 +4,19 @@ Changes to the public contract are recorded here. Versions follow Semantic Versi
 
 ## Unreleased
 
+## 0.5.0 (2026-10-30)
+
+- Add Cursor#resolved? with a lazy, invalidated prefix index; Block/Capture completeness remains live after state changes and reset.
+- Snapshot declaration, request, child, capture-source and record arrays before validation or callbacks without inheriting caller copy hooks.
+
+- Make immutable `Commands` the single declaration boundary; add query grouping/selection and accept empty catalogs.
+- Add `Profile#declarations`, constructor injection and `with_declarations`; remove the independent `COMMANDS`/`PARSERS` declaration protocol and mutable-directory caches.
+- Reject foreign configuration blocks before callbacks; snapshot scope paths before entering callbacks and preserve live source completeness.
+- Strip string subclasses, attached state and singleton behavior at snapshot, command, input and source-line boundaries.
+- Rebuild frozen containers instead of reusing external object identity; preserve sharing within each copy and use Ruby string deduplication without an application-level cache.
+- Keep selected model overrides stable in derived profiles; retain Result/Results fields, projection isolation and Records ownership semantics.
+- Provide standalone configuration benchmarks and a 0.5 migration guide.
+
 ## 0.4.0 (2026-10-29)
 
 - Add immutable `covered_scopes` to Result, including equality, hashing, pattern matching and `with` semantics.

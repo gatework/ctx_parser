@@ -30,8 +30,7 @@ RSpec.describe "Profiles with independent commands for a dimension" do
       { dimensions: %i[counters alarms shared], command: "show output counters", parser: second_parser }
     ], multi_command: true)
     Class.new(CtxParser::Profile).tap do |type|
-      type.const_set(:COMMANDS, declarations.by_dimension)
-      type.const_set(:PARSERS, declarations.parsers)
+      type.const_set(:DECLARATIONS, declarations)
     end
   end
   let(:profile) { profile_class.new }
@@ -125,8 +124,7 @@ RSpec.describe "Profiles with independent commands for a dimension" do
     input = +"show input counters"
     declarations = [ input ]
     type = Class.new(CtxParser::Profile)
-    type.const_set(:COMMANDS, { counters: declarations })
-    type.const_set(:PARSERS, { input => first_parser })
+    type.const_set(:DECLARATIONS, CtxParser::Commands.new([ { dimensions: [ :counters ], command: input, parser: first_parser } ]))
     commands = type.new.commands_for(:counters)
     input.replace("caller changed")
     declarations.clear

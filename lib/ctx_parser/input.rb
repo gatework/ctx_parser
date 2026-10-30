@@ -8,13 +8,13 @@ module CtxParser
     # 校验来源文本，仅按请求调整编码或换行形式。
     def text(content, encoding: :preserve, newlines: :preserve, allow_nul: false, max_bytes: nil)
       raise ArgumentError, "CLI output must be text" unless content.is_a?(String)
+      value = String.new(content)
       raise ArgumentError, "Invalid encoding policy" unless %i[preserve utf8 transcode].include?(encoding)
       raise ArgumentError, "Invalid newline policy" unless %i[preserve lf delete_cr].include?(newlines)
       raise ArgumentError, "NUL policy must be boolean" unless [ true, false ].include?(allow_nul)
       raise ArgumentError, "Invalid byte limit" unless max_bytes.nil? || (max_bytes.is_a?(Integer) && max_bytes >= 0)
-      raise ArgumentError, "CLI output exceeds byte limit" if max_bytes && content.bytesize > max_bytes
+      raise ArgumentError, "CLI output exceeds byte limit" if max_bytes && value.bytesize > max_bytes
 
-      value = content.dup
       value.force_encoding(Encoding::UTF_8) if encoding == :utf8 || value.encoding == Encoding::BINARY
       raise EncodingError, "CLI output encoding is invalid" unless value.valid_encoding?
 

@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "immutable"
+
 module CtxParser
   # 不可变来源行保留原始换行，同时提供用于语法匹配的归一化文本。
   Line = Data.define(:index, :raw) do
@@ -8,10 +10,11 @@ module CtxParser
       raise ArgumentError, "Line index must be nonnegative" unless index.is_a?(Integer) && index >= 0
       raise ArgumentError, "Line content must be text" unless raw.is_a?(String)
 
+      raw = Immutable.copy_string(raw)
       # strip 已移除行结束空白，避免 chomp 依赖宿主进程的 $/。
       @text = raw.strip.freeze
       @indent = raw[/\A[ \t]*/].size
-      super(index: index, raw: raw.frozen? ? raw : raw.dup.freeze)
+      super(index: index, raw: raw)
     end
 
     # 返回诊断使用的从 1 开始的行号。

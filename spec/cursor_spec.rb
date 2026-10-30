@@ -4,6 +4,65 @@ require_relative "spec_helper"
 require "ctx_parser/parser"
 
 RSpec.describe CtxParser::Cursor do
+  it "keeps range resolution equal to a direct scan through mixed state changes" do
+    cursor = described_class.new("line\n" * 128)
+    random = Random.new(42)
+    cursor.size.times { |index| cursor.mark(index) }
+    expect(cursor.resolved?(0, 127)).to be(true)
+    2_000.times do
+      index = random.rand(cursor.size)
+      cursor.mark(index, state: described_class::STATES.sample(random: random))
+      first, last = [ random.rand(cursor.size), random.rand(cursor.size) ].sort
+      expected = (first..last).all? { |line| described_class::RESOLVED_STATES.include?(cursor.state(line)) }
+      expect(cursor.resolved?(first, last)).to eq(expected)
+    end
+    cursor.size.times { |index| cursor.mark(index, state: :ignored) }
+    expect(cursor.resolved?(0, 127)).to be(true)
+    cursor.reset!
+    expect(cursor.resolved?(0, 127)).to be(false)
+  end
+
+  it "updates captured completeness after navigation and changes within and beyond earlier queries" do
+    document = CtxParser::Document.new("parent\n first\n middle\n last\n")
+    cursor = document.cursor
+    capture = cursor.capture(document.roots.first, data: "fact", path: [])
+    4.times { |index| cursor.mark(index) }
+    expect(cursor.resolved?(0, 1)).to be(true)
+    cursor.mark(3, state: :invalid)
+    expect(capture).not_to be_complete
+    cursor.mark(3)
+    expect(capture).to be_complete
+    cursor.rewind
+    cursor.read
+    cursor.read
+    cursor.step_back
+    expect(capture).to be_complete
+    cursor.read
+    cursor.defer
+    expect(capture).not_to be_complete
+    cursor.mark(1, state: :ignored)
+    expect(capture).to be_complete
+    cursor.unread
+    expect(capture).not_to be_complete
+    cursor.mark(1)
+    expect(capture).to be_complete
+    cursor.reset!
+    expect(capture).not_to be_complete
+  end
+
+  it "rejects invalid resolution ranges without changing states or valid query results" do
+    cursor = described_class.new("first\nlast\n")
+    2.times { |index| cursor.mark(index) }
+    expect(cursor.resolved?(0, 1)).to be(true)
+    [ [ -1, 0 ], [ 0, 2 ], [ nil, 1 ], [ 0, "1" ] ].each do |range|
+      expect { cursor.resolved?(*range) }.to raise_error(IndexError)
+    end
+    expect { cursor.resolved?(1, 0) }.to raise_error(ArgumentError)
+    expect { described_class.new("").resolved?(0, 0) }.to raise_error(IndexError)
+    expect(cursor.states).to eq(%i[parsed parsed])
+    expect(cursor.resolved?(0, 1)).to be(true)
+  end
+
   it "preserves mixed original line endings and detaches the source from its caller" do
     input = +"hostname LEAF\r\nfeature bgp\rinterface Ethernet1/1\n  description edge"
     original = input.dup

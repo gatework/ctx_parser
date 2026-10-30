@@ -17,6 +17,7 @@ module CtxParser
         raise ArgumentError, "Invalid source block range"
       end
 
+      children = Array.new(children) if children.is_a?(Array)
       previous_index = header.index
       unless children.is_a?(Array) && children.all? do |child|
           next false unless child.is_a?(Block) && child.cursor.equal?(cursor) &&
@@ -29,7 +30,7 @@ module CtxParser
       end
 
       @cursor, @header, @last_index = cursor, header, last_index
-      @children = children.dup.freeze
+      @children = children.freeze
       freeze
     end
 
@@ -102,7 +103,7 @@ module CtxParser
     # 返回当前配置块各来源行的处理状态。
     def states = lines.map { |source| cursor.state(source.index) }.freeze
     # 要求块内所有来源行均已解析或明确忽略。
-    def complete? = (index..last_index).all? { |index| Cursor::RESOLVED_STATES.include?(cursor.state(index)) }
+    def complete? = cursor.resolved?(index, last_index)
     # 序列化诊断元数据，不包含原始来源文本。
     def as_json(*) = { first_line: line, last_line: last_index + 1, children: children.size }
     # 展示对象身份与状态，避免泄露原始回显或凭据。

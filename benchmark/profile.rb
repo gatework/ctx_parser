@@ -4,23 +4,16 @@ require "ctx_parser"
 require "json"
 
 # 动态端口目录在采集前逐条选择实现；同时验证顺序、拒绝未知命令及复用结果。
-class BenchmarkProfile < CtxParser::Profile
-  attr_accessor :directory, :implementations
-
-  def commands = directory
-  def parsers = implementations
-end
-
 implementation = Class.new(CtxParser::Parser)
 puts RUBY_DESCRIPTION
 puts "source=#{CtxParser::Profile.instance_method(:commands_for).source_location.first}"
-[ 32, 128, 512 ].each do |count|
+[ 32, 128, 512, 4096 ].each do |count|
   queries = count.times.map { |index| "show port #{index}".freeze }.freeze
-  directory = { counters: queries }.freeze
-  implementations = queries.to_h { |query| [ query, implementation ] }.freeze
+  catalog = CtxParser::Commands.new(queries.map do |query|
+    { dimensions: [ :counters ], command: query, parser: implementation }
+  end, multi_command: true)
   3.times do |trial|
-    profile = BenchmarkProfile.new
-    profile.directory, profile.implementations = directory, implementations
+    profile = CtxParser::Profile.new(declarations: catalog)
     GC.start
     allocations = GC.stat(:total_allocated_objects)
     started = Process.clock_gettime(Process::CLOCK_MONOTONIC)

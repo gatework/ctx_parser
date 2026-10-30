@@ -7,6 +7,46 @@ require "ctx_parser/parser"
 require "ctx_parser/configuration"
 
 RSpec.describe CtxParser::Block do
+  it "rejects foreign sources before callbacks or semantic state changes" do
+    parser = Class.new(CtxParser::Configuration) do
+      def parse_output(text, complete:)
+        read_configuration(text)
+        CtxParser::Result.new(status: :partial)
+      end
+    end.new
+    parser.parse("current\n child\n")
+    foreign = CtxParser::Document.new("foreign\n child\n").roots.first
+    %i[analyze analyze_children ignore].each do |operation|
+      expect { parser.send(operation, foreign) { raise "Callback must not run" } }.to raise_error(ArgumentError, /cursor/)
+      expect(parser.cursor.states).to eq(%i[pending pending])
+    end
+    expect { parser.send(:scope, foreign, []) { raise "Callback must not run" } }.to raise_error(ArgumentError, /cursor/)
+    expect(parser.cursor.captures).to be_empty
+  end
+
+  it "snapshots scope paths before callbacks and restores the parent after failure" do
+    parser = Class.new(CtxParser::Configuration) do
+      def parse_output(text, complete:)
+        read_configuration(text)
+        CtxParser::Result.new(status: :partial)
+      end
+    end.new
+    parser.parse("current\n child\n")
+    block = parser.blocks.first
+    path = [ +"parent" ]
+    parser.send(:scope, block, path) do
+      path.first.replace("changed")
+      expect do
+        parser.send(:scope, block.children.first, [ :child ]) { raise ArgumentError, "invalid value" }
+      end.to raise_error(ArgumentError)
+      parser.send(:scope, block.children.first, parser.instance_variable_get(:@source_path) + [ :child ]) { 1 }
+      { child: 1 }
+    end
+    expect(parser.cursor.captures.map(&:path)).to eq([ [ "parent" ], [ "parent", :child ] ])
+    expect { parser.send(:scope, block, [ Object.new ]) { raise "Callback must not run" } }.to raise_error(ArgumentError)
+    expect(parser.cursor.captures.size).to eq(2)
+  end
+
   it "preserves exact evidence independently of the process output separator" do
     script = <<~'RUBY'
       require "ctx_parser"

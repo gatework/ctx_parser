@@ -8,16 +8,21 @@ module CtxParser
     Snapshot = Data.define(:data, :path) do
       # 此边界仅接收调用方原始数据，各快照自行持有深度冻结的副本。
       def initialize(data:, path:)
-        unless path.is_a?(Array) && path.all? { |key| key.nil? || key.is_a?(Symbol) || key.is_a?(String) || key.is_a?(Integer) }
-          raise ArgumentError, "Capture path must contain record keys or indexes"
-        end
-
-        super(data: Immutable.copy(data), path: Immutable.copy(path))
+        super(data: Immutable.copy(data), path: Capture.path_snapshot(path))
       end
     end
     private_constant :Snapshot
 
     attr_reader :block, :data, :path
+
+    # 作用域进入前与事实捕获时共用路径边界，不保留调用方可变键。
+    def self.path_snapshot(path)
+      unless path.is_a?(Array) && path.all? { |key| key.nil? || key.is_a?(Symbol) || key.is_a?(String) || key.is_a?(Integer) }
+        raise ArgumentError, "Capture path must contain record keys or indexes"
+      end
+
+      Immutable.copy(path)
+    end
 
     # 冻结解析事实及其来源块和结果路径。
     def initialize(block:, data:, path:)
@@ -30,13 +35,14 @@ module CtxParser
     # 同一事实的多个来源共享已复制的值，不共享未经校验的调用方容器。
     def self.for_blocks(blocks, data:, path:)
       require_relative "block" unless defined?(Block)
+      blocks = Array.new(blocks) if blocks.is_a?(Array)
       unless blocks.is_a?(Array) && blocks.all? { |block| block.is_a?(Block) }
         raise ArgumentError, "Capture sources must be blocks"
       end
       return [].freeze if blocks.empty?
 
       snapshot = Snapshot.new(data: data, path: path)
-      blocks.map { |block| allocate.tap { |capture| capture.send(:initialize_snapshot, block, snapshot) } }.freeze
+      blocks.map! { |block| allocate.tap { |capture| capture.send(:initialize_snapshot, block, snapshot) } }.freeze
     end
 
     # 返回配置块或捕获事实对应的精确来源文本。
